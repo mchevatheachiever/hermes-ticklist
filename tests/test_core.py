@@ -121,11 +121,57 @@ class StoreTest(unittest.TestCase):
         (Path(self.tmp.name) / "lists.json").write_text("{nope")
         self.assertEqual(self.store.summary()["lists"], [])
 
+    def test_corrupt_file_is_quarantined_not_destroyed(self):
+        # An empty state returned from a corrupt read must never be allowed to
+        # overwrite the only copy of the user's items on the next write.
+        path = Path(self.tmp.name) / "lists.json"
+        path.write_text('{"version": 1, "lists": {"shop": {"items": [')  # truncated
+        self.assertEqual(self.store.summary()["lists"], [])
+
+        backups = list(Path(self.tmp.name).glob("lists.json.corrupt-*"))
+        self.assertEqual(len(backups), 1, backups)
+        self.assertIn("shop", backups[0].read_text())
+
+        self.store.add_items("fresh", ["milk"])
+        self.assertEqual(len(backups[0].read_text()) > 0, True)
+        self.assertEqual([entry["name"] for entry in self.store.summary()["lists"]], ["fresh"])
+
+    def test_long_names_do_not_collide(self):
+        a = "Build the whole fence along the north boundary of the property line A"
+        b = "Build the whole fence along the north boundary of the property line B"
+        self.assertNotEqual(core.slugify(a), core.slugify(b))
+        self.store.add_items(a, ["posts"])
+        self.store.add_items(b, ["rails"])
+        ids = [entry["id"] for entry in self.store.summary()["lists"]]
+        self.assertEqual(len(ids), 2, ids)
+        self.assertNotEqual(ids[0], ids[1])
+        # each list kept its own items
+        first = self.store.get_list(a)
+        second = self.store.get_list(b)
+        self.assertEqual([i["text"] for i in first["items"]], ["posts"])
+        self.assertEqual([i["text"] for i in second["items"]], ["rails"])
+
+    def test_short_names_keep_a_readable_slug(self):
+        self.assertEqual(core.slugify("Site work #2"), "site-work-2")
+
     def test_counts(self):
         items = self.store.add_items(None, ["a", "b", "c"])["list"]["items"]
         self.store.set_done(None, items[0]["id"], True)
         entry = self.store.get_list()
         self.assertEqual(sum(1 for i in entry["items"] if i["done"]), 1)
+
+
+class PayloadTest(unittest.TestCase):
+    def test_mapping_items_are_refused(self):
+        # A model posting {"text": "milk"} iterates a dict's keys and would store
+        # an item literally named "text".
+        with self.assertRaises(core.TickError) as caught:
+            core.normalise_items({"text": "milk"})
+        self.assertIn("wrap", str(caught.exception))
+
+    def test_list_of_one_mapping_is_accepted(self):
+        items = core.normalise_items([{"text": "milk"}])
+        self.assertEqual([item["text"] for item in items], ["milk"])
 
 
 class RenderTest(unittest.TestCase):

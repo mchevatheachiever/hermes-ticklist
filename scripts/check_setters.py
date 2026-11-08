@@ -43,6 +43,17 @@ def check(path: Path) -> list[str]:
             0,
         )
         problems.append(f"{path}:{line}: {name}() is called but never declared with useState")
+
+    # The mirror image, and the one that shipped once already: a setter that is
+    # declared and never called means a control the docs promise was never
+    # wired up. A name occurring exactly once exists only at its declaration.
+    for name in sorted(declared):
+        if len(re.findall(rf"\b{name}\b", source)) == 1:
+            line = next(
+                (number for number, text in enumerate(source.splitlines(), 1) if name in text),
+                0,
+            )
+            problems.append(f"{path}:{line}: {name} is declared but never called — dead control?")
     return problems
 
 

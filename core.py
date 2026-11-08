@@ -10,12 +10,14 @@ No network, no credentials, stdlib only.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
 import secrets
 import tempfile
 import time
+from collections.abc import Mapping
 from contextlib import contextmanager
 from typing import Any, Iterable, Iterator
 
@@ -63,13 +65,41 @@ def clean_name(raw: Any, *, default: str = "ticklist") -> str:
         return default
     if not isinstance(raw, str):
         raise TickError("list name must be text")
-    text = _CTRL_RE.sub(" ", raw).strip()
-    return (text or default)[:MAX_NAME_CHARS]
+    text = _CTRL_RE.sub(" ", raw).strip() or default
+    if len(text) > MAX_NAME_CHARS:
+        # Visible truncation, not a silent cut: two long names would otherwise
+        # both render as the same string in the tab strip.
+        return text[: MAX_NAME_CHARS - 1] + "…"
+    return text
 
 
 def slugify(name: str) -> str:
-    slug = _SLUG_RE.sub("-", str(name).strip().lower()).strip("-")[:48]
-    return slug or "ticklist"
+    """Stable key for a list name.
+
+    Truncation keeps a short hash of the *whole* slug: two long names that share
+    their first 48 characters would otherwise collide and silently merge into one
+    list, with the second one's items landing inside the first.
+    """
+    raw = _SLUG_RE.sub("-", str(name).strip().lower()).strip("-")
+    if not raw:
+        return "ticklist"
+    if len(raw) > 48:
+        return raw[:39] + "-" + hashlib.sha1(raw.encode("utf-8")).hexdigest()[:8]
+    return raw
+
+
+def list_key(raw: Any) -> str:
+    """Stable store key for a list name, derived from the name BEFORE truncation.
+
+    ``clean_name`` cuts the display text to 60 characters (and says so with an
+    ellipsis), so slugifying the *display* name would erase the very tail that
+    distinguishes two long names — they would hash identically and merge.
+    """
+    if raw is None:
+        return slugify("ticklist")
+    if not isinstance(raw, str):
+        raise TickError("list name must be text")
+    return slugify(_CTRL_RE.sub(" ", raw).strip() or "ticklist")
 
 
 def new_id() -> str:
@@ -82,6 +112,10 @@ def normalise_items(raw: Any) -> list[dict[str, Any]]:
     Duplicate texts collapse onto the first occurrence (case-insensitive): two
     identical rows are indistinguishable on screen and would drift apart.
     """
+    if isinstance(raw, Mapping):
+        raise TickError(
+            "items must be a list of texts — wrap a single item in a list, e.g. [\"milk\"]"
+        )
     if isinstance(raw, str):
         raw = [line for line in raw.splitlines() if line.strip()]
     if not isinstance(raw, Iterable):
@@ -149,8 +183,16 @@ class TickStore:
 
     def read(self) -> dict[str, Any]:
         try:
-            raw = json.loads(self.path.read_text(encoding="utf-8"))
-        except (FileNotFoundError, json.JSONDecodeError):
+            text = self.path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            return _empty_state()
+        try:
+            raw = json.loads(text)
+        except json.JSONDecodeError:
+            # Quarantine before returning an empty state: the very next write
+            # would otherwise replace the user's items with a fresh empty file,
+            # turning one corrupt byte into a total, silent wipe.
+            self._quarantine()
             return _empty_state()
         if not isinstance(raw, dict):
             return _empty_state()
@@ -165,6 +207,14 @@ class TickStore:
         if state["active"] not in state["lists"]:
             state["active"] = next(iter(state["lists"]), "")
         return state
+
+    def _quarantine(self) -> None:
+        """Move an unparseable store aside so it survives the next write."""
+        target = self.root / f"lists.json.corrupt-{int(time.time())}"
+        try:
+            os.replace(self.path, target)
+        except OSError:  # pragma: no cover - read-only volume
+            pass
 
     @staticmethod
     def _clean_list(key: str, entry: Any) -> dict[str, Any] | None:
@@ -216,7 +266,7 @@ class TickStore:
         lists = state["lists"]
         if not lists:
             raise TickError("no list exists yet")
-        key = state["active"] if name is None else slugify(clean_name(name))
+        key = state["active"] if name is None else list_key(name)
         entry = lists.get(key)
         if entry is None:
             known = ", ".join(sorted(entry["name"] for entry in lists.values()))
@@ -225,7 +275,7 @@ class TickStore:
 
     def ensure_list(self, name: str | None = None) -> dict[str, Any]:
         display = clean_name(name)
-        key = slugify(display)
+        key = list_key(name)
         with self._locked():
             state = self.read()
             entry = state["lists"].get(key)

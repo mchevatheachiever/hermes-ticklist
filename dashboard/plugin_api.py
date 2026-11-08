@@ -124,6 +124,10 @@ async def add_items(payload: AddPayload) -> dict[str, Any]:
 
 @router.patch("/items/{item_id}")
 async def set_done(item_id: str, payload: DonePayload, list: str | None = None) -> dict[str, Any]:
+    if not item_id.strip():
+        # A blank id is the caller's mistake, not a missing row: 400, matching
+        # the POST routes rather than reporting it as 404.
+        raise HTTPException(status_code=400, detail="an item id or text is required")
     try:
         core.TickStore().set_done(list, item_id, payload.done)
     except core.TickError as exc:
@@ -135,6 +139,8 @@ async def set_done(item_id: str, payload: DonePayload, list: str | None = None) 
 
 @router.delete("/items/{item_id}")
 async def remove_item(item_id: str, list: str | None = None) -> dict[str, Any]:
+    if not item_id.strip():
+        raise HTTPException(status_code=400, detail="an item id or text is required")
     try:
         core.TickStore().remove(list, item_id)
     except core.TickError as exc:

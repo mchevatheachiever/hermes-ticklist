@@ -2,6 +2,34 @@
 
 All notable changes to this plugin. Versions follow the `plugin.yaml` version.
 
+## 1.1.1 — 2026-11-08
+
+Fixes from an external review of 1.1.0 (issue #1).
+
+### Fixed
+- **The tab underline never drew.** `border-b-2` is a Tailwind class the app never
+  compiles for a plugin file, so the active-tab accent was invisible. Now an inline
+  `borderBottom`.
+- **"Remove from list on tick" had no UI.** The setter was declared, persisted and
+  documented in three places, but nothing rendered the checkbox — it is back above
+  the add box.
+- **Long list names could merge.** `slugify()` truncated at 48 while names allowed
+  60, so two names sharing a prefix collapsed into one list with the second one's
+  items inside the first. Keys are now derived from the raw name and a truncated key
+  keeps a hash suffix. Display names show an ellipsis when cut.
+- **A corrupt store was a silent wipe.** `read()` returned an empty state and the
+  next write replaced the file. The unparseable file is now moved to
+  `lists.json.corrupt-<epoch>` before an empty state is returned.
+- **`items` as an object stored an item named "text"** (a dict iterates its keys).
+  Mappings are refused with a hint to wrap the item in a list.
+- Row delete button is reachable by keyboard (`focus-visible`) and has an
+  `aria-label`; the announce toggle exposes `aria-pressed`.
+- `PATCH /items/{id}` answers 400, not 404, for a missing id.
+- Guard (`scripts/check_setters.py`) now also flags a setter that is declared but
+  never called — the shape that let the missing checkbox ship.
+- README: "Reload desktop plugins" **does** exist (it was documented as absent);
+  install steps now say the desktop app must reconcile before the pane appears.
+
 ## 1.1.0 — 2026-11-08
 
 Second release: the pane became a first-class Hermes pane, and the poll stopped

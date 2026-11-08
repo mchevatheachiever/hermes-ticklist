@@ -64,9 +64,10 @@ function Row({ item, onToggle, onRemove }) {
       jsx('button', {
         type: 'button',
         title: 'Remove item',
+        'aria-label': `Remove ${item.text}`,
         onClick: () => onRemove(item),
         className:
-          'shrink-0 opacity-0 transition-opacity group-hover:opacity-100 text-(--ui-text-quaternary) hover:text-foreground',
+          'shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 text-(--ui-text-quaternary) hover:text-foreground',
         style: { fontSize: '11px', padding: '0 3px' },
         children: '✕'
       })
@@ -266,6 +267,8 @@ function TickPane({ ctx }) {
         variant: 'ghost',
         onClick: () => setAnnounce((value) => !value),
         title: announce ? 'Ticks are posted to the chat' : 'Ticks stay in the pane',
+        'aria-label': announce ? 'Stop posting ticks to the chat' : 'Post ticks to the chat',
+        'aria-pressed': announce,
         children: announce ? '💬' : '🔇'
       }),
     ]
@@ -308,11 +311,18 @@ function TickPane({ ctx }) {
                     }
                   },
                   className: cn(
-                    'shrink-0 whitespace-nowrap rounded-t border-b-2 px-2 py-1 text-[0.6875rem] transition-colors',
+                    'shrink-0 whitespace-nowrap rounded-t px-2 py-1 text-[0.6875rem] transition-colors',
                     entry.id === (list && list.id)
-                      ? 'border-(--ui-accent) text-foreground'
-                      : 'border-transparent text-(--ui-text-tertiary) hover:bg-(--chrome-action-hover)'
+                      ? 'text-foreground'
+                      : 'text-(--ui-text-tertiary) hover:bg-(--chrome-action-hover)'
                   ),
+                  // Inline, not `border-b-2`: Tailwind v4 only compiles classes
+                  // found under apps/desktop/src, so a plugin class never exists.
+                  style: {
+                    borderBottom: `2px solid ${
+                      entry.id === (list && list.id) ? 'var(--ui-accent)' : 'transparent'
+                    }`
+                  },
                   children: `${entry.name} (${entry.done}/${entry.total})`
                 },
                 entry.id
@@ -336,6 +346,21 @@ function TickPane({ ctx }) {
                 ? 'Nothing on the list. Add something below, or ask Hermes.'
                 : 'No list yet. Type below, or ask Hermes to make one.'
             })
+      }),
+
+      jsxs('label', {
+        className:
+          'flex shrink-0 cursor-pointer items-center gap-1.5 text-[0.6875rem] text-(--ui-text-tertiary)',
+        style: { userSelect: 'none' },
+        children: [
+          jsx('input', {
+            type: 'checkbox',
+            checked: removeOnTick,
+            onChange: (event) => setRemovePref(event.target.checked),
+            style: { accentColor: 'var(--ui-accent)', width: '12px', height: '12px' }
+          }),
+          jsx('span', { children: 'remove from list on tick' })
+        ]
       }),
 
       jsxs('div', {

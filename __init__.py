@@ -3,9 +3,9 @@
 Agent half: five tools. Desktop half: `desktop/plugin.js`, a pane of checkboxes
 that posts each tick/untick into the conversation as it happens.
 
-The pane opens through `host.openWorkspace`, so the tab's own Close tears it down
-and re-opening the same id fronts the tab again — driven by a status-bar chip that
-is always on screen. No Settings trip, no keyboard.
+The pane opens through `host.openWorkspace`, docks beside the terminal pane, and the
+tab's own Close tears it down; re-opening the same id fronts the tab again, on the
+list the user was reading.
 """
 
 from __future__ import annotations

@@ -30,10 +30,15 @@ Until the catalog entry lands, install from the repository:
 hermes plugins install mchevatheachiever/hermes-ticklist
 ```
 
-Then enable it in **Settings ▸ Plugins**. The **ticks** pane opens in the terminal
-pane's zone as a sibling tab and stays there — switch to it like any other tab. If
-you close it, `Ctrl+K → "TickList: show checklist"` brings it back, on the list you
-were last reading.
+Then enable it in **Settings ▸ Plugins**, and **restart the desktop app** (or
+`Ctrl+K → "Reload desktop plugins"` after the app has reconciled). Enabling publishes
+the agent half immediately, but the pane's `plugin.js` is copied into
+`<hermes home>/desktop-plugins/ticklist/` by the Electron reconcile pass at app start
+— so with the app already running there is no pane to show until then.
+
+The **ticks** pane then opens in the terminal pane's zone as a sibling tab and stays
+there — switch to it like any other tab. If you close it, `Ctrl+K → "TickList: show
+checklist"` brings it back, on the list you were last reading.
 
 ## Use
 
@@ -61,7 +66,7 @@ which is what makes the agent see it.
 | **Add** box | type one item per line; Enter adds |
 | **Tab ✕** | closes the pane; `Ctrl+K → "TickList: show checklist"` re-opens it by the same id, restoring the list you were on |
 
-Tickled rows collect at the bottom: unticked first, ticked gathered below, order
+Ticked rows collect at the bottom: unticked first, ticked gathered below, order
 preserved within each group — a checklist is read for what's left, but a row must
 not jump out from under the cursor.
 
@@ -127,9 +132,11 @@ host.openWorkspace('ticklist', {
 - There is deliberately **no status-bar chip**: the pane is a permanent tab, so a
   chip would be a second door for something already one click away.
 
-Reload plugins with **Ctrl+K → "Reload window"** (there is no "Reload desktop
-plugins" command in v0.23.x). The desktop half hot-reloads when `plugin.js` changes;
-the Python half needs a gateway restart.
+Reload the desktop half with **Ctrl+K → "Reload desktop plugins"**
+(`plugins.reload`, which re-scans the plugins root without a window reload). **"Reload
+window"** is the heavier fallback — a full `location.reload()` — for when the pane
+itself is wedged. The desktop half also hot-reloads when `plugin.js` changes; the
+Python half needs a gateway restart.
 
 ## API
 
