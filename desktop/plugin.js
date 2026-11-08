@@ -74,7 +74,7 @@ function Row({ item, onToggle, onRemove }) {
   })
 }
 
-function TickPane({ ctx }) {
+function TickPane({ ctx, onClose }) {
   const [collapsed, setCollapsed] = useState(false)
   const [draft, setDraft] = useState('')
   const [error, setError] = useState('')
@@ -231,6 +231,14 @@ function TickPane({ ctx }) {
         title: announce ? 'Ticks are posted to the chat' : 'Ticks stay in the pane',
         children: announce ? '💬' : '🔇'
       }),
+      jsx('button', {
+        type: 'button',
+        title: 'Close (reopen with ⌘K → TickList)',
+        onClick: onClose,
+        className: 'shrink-0 text-(--ui-text-tertiary) hover:text-foreground',
+        style: { fontSize: '11px', padding: '0 2px' },
+        children: '✕'
+      })
     ]
   })
 
@@ -342,15 +350,40 @@ export default {
   id: ID,
   name: 'TickList',
   register(ctx) {
-    // hideOnly hands visibility to the app: the pane minimises to a strip tab on
-    // the zone rail (the FILES/TERMINAL behaviour) and the app registers the
-    // palette row that brings it back. No disposer, no Settings trip.
+    let disposePane = null
+
+    const hidePane = () => {
+      if (disposePane) {
+        disposePane()
+        disposePane = null
+      }
+    }
+
+    const showPane = () => {
+      if (disposePane) return
+      disposePane = ctx.register({
+        id: 'pane',
+        area: 'panes',
+        title: 'ticks',
+        data: { placement: 'right', width: '360px' },
+        render: () => jsx(TickPane, { ctx, onClose: hidePane })
+      })
+    }
+
+    showPane()
+
     ctx.register({
-      id: 'pane',
-      area: 'panes',
-      title: 'ticks',
-      data: { placement: 'right', width: '360px', hideOnly: true },
-      render: () => jsx(TickPane, { ctx })
+      id: 'toggle',
+      area: PALETTE_AREA,
+      data: {
+        id: `${ID}.toggle`,
+        label: 'TickList: show / hide checklist',
+        keywords: ['tick', 'checklist', 'todo', 'tasks', 'list'],
+        run: () => {
+          if (disposePane) hidePane()
+          else showPane()
+        }
+      }
     })
   }
 }
