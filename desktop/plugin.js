@@ -151,6 +151,16 @@ function TickPane({ ctx }) {
     detail.refetch()
   }, [query, detail])
 
+  // A tick names its list explicitly: the API falls back to the *active* list,
+  // which is whichever list was last created or added to — not the tab in view.
+  const listPath = useCallback(
+    (itemId) => {
+      const suffix = list ? `?list=${encodeURIComponent(list.name)}` : ''
+      return `/items/${encodeURIComponent(itemId)}${suffix}`
+    },
+    [list]
+  )
+
   const post = useCallback(
     (text) => {
       if (!announce) return
@@ -170,12 +180,12 @@ function TickPane({ ctx }) {
       haptic('tap')
       try {
         if (!item.done && removeOnTick) {
-          await ctx.rest(`/items/${encodeURIComponent(item.id)}`, { method: 'DELETE' })
+          await ctx.rest(listPath(item.id), { method: 'DELETE' })
           refresh()
           post(`Ticked and removed — ${item.text}`)
           return
         }
-        await ctx.rest(`/items/${encodeURIComponent(item.id)}`, {
+        await ctx.rest(listPath(item.id), {
           method: 'PATCH',
           body: { done: !item.done }
         })
@@ -185,20 +195,20 @@ function TickPane({ ctx }) {
         setError(`could not save: ${err && err.message ? err.message : err}`)
       }
     },
-    [ctx, post, refresh, removeOnTick]
+    [ctx, listPath, post, refresh, removeOnTick]
   )
 
   const remove = useCallback(
     async (item) => {
       try {
-        await ctx.rest(`/items/${encodeURIComponent(item.id)}`, { method: 'DELETE' })
+        await ctx.rest(listPath(item.id), { method: 'DELETE' })
         refresh()
         post(`Removed — ${item.text}`)
       } catch (err) {
         setError(`could not remove: ${err && err.message ? err.message : err}`)
       }
     },
-    [ctx, post, refresh]
+    [ctx, listPath, post, refresh]
   )
 
   const add = useCallback(async () => {

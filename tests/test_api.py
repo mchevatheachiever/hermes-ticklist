@@ -66,6 +66,23 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(ticked.status_code, 200, ticked.text)
         self.assertEqual(ticked.json()["lists"][0]["done"], 1)
 
+    def test_tick_names_its_list_not_the_active_one(self):
+        # The pane ticks a tab that isn't the active list; without ?list= the
+        # route searched the active list and answered 404.
+        first = self.client.post("/api/plugins/ticklist/lists", json={"items": ["mogami"], "list": "audio"}).json()
+        self.client.post("/api/plugins/ticklist/lists", json={"items": ["vehicles"], "list": "cars"})
+        item_id = first["lists"][0]["items"][0]["id"]
+
+        blind = self.client.patch(f"/api/plugins/ticklist/items/{item_id}", json={"done": True})
+        self.assertEqual(blind.status_code, 404)
+
+        scoped = self.client.patch(
+            f"/api/plugins/ticklist/items/{item_id}?list=audio", json={"done": True}
+        )
+        self.assertEqual(scoped.status_code, 200, scoped.text)
+        audio = next(entry for entry in scoped.json()["lists"] if entry["id"] == "audio")
+        self.assertEqual(audio["done"], 1)
+
     def test_remove(self):
         state = self.client.post(
             "/api/plugins/ticklist/lists", json={"items": ["a", "b"]}
