@@ -25,6 +25,7 @@ GLOBALS = {
     "setInterval", "setTimeout", "setTransform", "setValueAtTime",
     "setTargetAtTime", "setLineDash", "setAttribute", "setProperty",
     "setItem", "setRequestHeader", "setSelectionRange", "setRangeText",
+    "setData",  # DataTransfer.setData — drag and drop
 }
 
 

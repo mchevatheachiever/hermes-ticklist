@@ -19,20 +19,21 @@ from pydantic import BaseModel, Field
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent
 
 
-def _load_core() -> Any:
-    existing = sys.modules.get("ticklist_core")
+def _load(module_name: str, filename: str) -> Any:
+    existing = sys.modules.get(module_name)
     if existing is not None:
         return existing
-    spec = importlib.util.spec_from_file_location("ticklist_core", PLUGIN_ROOT / "core.py")
+    spec = importlib.util.spec_from_file_location(module_name, PLUGIN_ROOT / filename)
     if spec is None or spec.loader is None:  # pragma: no cover
-        raise ImportError("cannot load ticklist core")
+        raise ImportError(f"cannot load {filename}")
     module = importlib.util.module_from_spec(spec)
-    sys.modules["ticklist_core"] = module
+    sys.modules[module_name] = module
     spec.loader.exec_module(module)
     return module
 
 
-core = _load_core()
+core = _load("ticklist_core", "core.py")
+export = _load("ticklist_export", "export.py")
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,10 @@ class AddPayload(BaseModel):
 
 class DonePayload(BaseModel):
     done: bool = True
+
+
+class OrderPayload(BaseModel):
+    ids: list[str] = Field(default_factory=list)
 
 
 class ClearPayload(BaseModel):
@@ -97,6 +102,31 @@ async def get_lists() -> dict[str, Any]:
         return _state()
     except OSError as exc:
         raise HTTPException(status_code=500, detail=f"store unreadable: {exc}") from exc
+
+
+@router.patch("/lists/{name}/order")
+async def reorder(name: str, payload: OrderPayload) -> dict[str, Any]:
+    try:
+        core.TickStore().reorder(name, payload.ids)
+    except core.TickError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"store unwritable: {exc}") from exc
+    return _state()
+
+
+@router.get("/lists/{name}/export")
+async def export_list(name: str, fmt: str = "txt") -> dict[str, Any]:
+    try:
+        entry = core.TickStore().get_list(name)
+    except core.TickError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    try:
+        content, mime, suffix = export.build(entry, fmt)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    safe = core.slugify(entry["name"]) or "ticklist"
+    return {"ok": True, "filename": f"{safe}.{suffix}", "mime": mime, "content": content}
 
 
 @router.get("/lists/{name}")

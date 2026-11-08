@@ -93,6 +93,31 @@ class ApiTest(unittest.TestCase):
         self.assertEqual([entry["id"] for entry in body["lists"]], ["jobs"])
         self.assertEqual(self.client.delete("/api/plugins/ticklist/lists/shop").status_code, 404)
 
+    def test_reorder_route(self):
+        state = self.client.post("/api/plugins/ticklist/lists", json={"items": ["a", "b", "c"]}).json()
+        ids = [item["id"] for item in state["lists"][0]["items"]]
+        response = self.client.patch(
+            "/api/plugins/ticklist/lists/ticklist/order", json={"ids": list(reversed(ids))}
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual([i["text"] for i in response.json()["lists"][0]["items"]], ["c", "b", "a"])
+
+        bad = self.client.patch("/api/plugins/ticklist/lists/ticklist/order", json={"ids": ids[:1]})
+        self.assertEqual(bad.status_code, 400)
+
+    def test_export_route(self):
+        self.client.post("/api/plugins/ticklist/lists", json={"items": ["a", "b"], "list": "shop"})
+        for fmt, needle in (("txt", "[ ] a"), ("md", "- [ ] a"), ("csv", "done,text"), ("json", '"items"')):
+            body = self.client.get(f"/api/plugins/ticklist/lists/shop/export?fmt={fmt}").json()
+            self.assertIn(needle, body["content"], fmt)
+            self.assertTrue(body["filename"].endswith("." + ("md" if fmt == "md" else fmt)))
+        self.assertEqual(
+            self.client.get("/api/plugins/ticklist/lists/shop/export?fmt=xlsx").status_code, 400
+        )
+        self.assertEqual(
+            self.client.get("/api/plugins/ticklist/lists/nope/export").status_code, 404
+        )
+
     def test_remove(self):
         state = self.client.post(
             "/api/plugins/ticklist/lists", json={"items": ["a", "b"]}

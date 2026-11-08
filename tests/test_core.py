@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import art  # noqa: E402
 import core  # noqa: E402
+import export  # noqa: E402
 
 
 class TextTest(unittest.TestCase):
@@ -190,6 +191,80 @@ class StoreTest(unittest.TestCase):
         self.store.set_done(None, items[0]["id"], True)
         entry = self.store.get_list()
         self.assertEqual(sum(1 for i in entry["items"] if i["done"]), 1)
+
+
+class ReorderTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.store = core.TickStore(Path(self.tmp.name))
+        self.store.add_items("shop", ["a", "b", "c"])
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def texts(self):
+        return [item["text"] for item in self.store.get_list("shop")["items"]]
+
+    def ids(self):
+        return [item["id"] for item in self.store.get_list("shop")["items"]]
+
+    def test_reorder_sets_the_order(self):
+        ids = self.ids()
+        self.store.reorder("shop", list(reversed(ids)))
+        self.assertEqual(self.texts(), ["c", "b", "a"])
+
+    def test_reorder_survives_a_reload(self):
+        ids = self.ids()
+        self.store.reorder("shop", [ids[1], ids[2], ids[0]])
+        self.assertEqual(core.TickStore(Path(self.tmp.name)).get_list("shop")["items"][0]["text"], "b")
+
+    def test_a_partial_order_is_refused(self):
+        with self.assertRaises(core.TickError):
+            self.store.reorder("shop", self.ids()[:2])
+        self.assertEqual(self.texts(), ["a", "b", "c"])
+
+    def test_a_duplicated_id_is_refused(self):
+        ids = self.ids()
+        with self.assertRaises(core.TickError):
+            self.store.reorder("shop", [ids[0], ids[0], ids[1]])
+
+
+class ExportTest(unittest.TestCase):
+    def setUp(self):
+        self.entry = {
+            "name": "Shop",
+            "items": [
+                {"id": "a1", "text": 'brackets, 2"', "done": False, "created": 1.0, "done_at": None},
+                {"id": "b2", "text": "paint", "done": True, "created": 2.0, "done_at": 3.0},
+            ],
+            "created_at": 1.0,
+            "updated_at": 3.0,
+        }
+
+    def test_text(self):
+        self.assertEqual(
+            export.build_text(self.entry),
+            'Shop — 1/2 done\n\n[ ] brackets, 2"\n[x] paint\n',
+        )
+
+    def test_markdown_is_a_task_list(self):
+        body = export.build_markdown(self.entry)
+        self.assertIn("# Shop", body)
+        self.assertIn("- [ ] brackets", body)
+        self.assertIn("- [x] paint", body)
+
+    def test_csv_quotes_and_has_a_header(self):
+        body = export.build_csv(self.entry)
+        self.assertTrue(body.startswith("done,text,created,done_at,id"))
+        self.assertIn('"brackets, 2"""', body)
+        self.assertEqual(len(body.strip().splitlines()), 3)
+
+    def test_json_round_trips(self):
+        self.assertEqual(json.loads(export.build_json(self.entry)), self.entry)
+
+    def test_unknown_format_is_refused(self):
+        with self.assertRaises(ValueError):
+            export.build(self.entry, "xlsx")
 
 
 class SeedTest(unittest.TestCase):

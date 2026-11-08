@@ -2,6 +2,17 @@
 
 All notable changes to this plugin. Versions follow the `plugin.yaml` version.
 
+## 1.3.0 — 2026-11-08
+
+### Added
+- **Drag to reorder rows.** Dragging is confined to a row's own group — dropping an
+  unticked row among the ticked ones would be undone by the sort on the next poll,
+  so the drop line only appears where the move can hold. Order is written to the
+  store via `PATCH /lists/{name}/order`; the endpoint refuses a partial or
+  duplicated order rather than silently re-appending the missing rows.
+- **Export a list**: Text, Markdown (task-list), CSV, JSON, or copy to the
+  clipboard, from `⤓` in the header. `GET /lists/{name}/export?fmt=` serves it.
+
 ## 1.2.0 — 2026-11-08
 
 ### Added

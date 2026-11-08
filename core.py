@@ -407,6 +407,26 @@ class TickStore:
             self.write(state)
         return {"removed": removed, "list": current}
 
+    def reorder(self, name: str | None, ids: Iterable[Any]) -> dict[str, Any]:
+        """Set the item order. The caller must name every item exactly once.
+
+        A partial list is refused rather than merged: a dropped row would vanish
+        from the user's order and reappear at the end on the next load.
+        """
+        entry = self.get_list(name)
+        key = entry["id"]
+        wanted = [str(item) for item in ids]
+        with self._locked():
+            state = self.read()
+            current = state["lists"][key]
+            by_id = {item["id"]: item for item in current["items"]}
+            if len(wanted) != len(by_id) or set(wanted) != set(by_id):
+                raise TickError("the new order must list every item on the list exactly once")
+            current["items"] = [by_id[item_id] for item_id in wanted]
+            current["updated_at"] = time.time()
+            self.write(state)
+        return {"list": current}
+
     def delete_list(self, name: str | None) -> dict[str, Any]:
         """Remove a list and everything on it. Returns what was lost."""
         entry = self.get_list(name)

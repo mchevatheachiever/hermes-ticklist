@@ -69,12 +69,30 @@ which is what makes the agent see it.
 | **☐ remove from list on tick** | off by default, remembered across sessions; with it on a tick deletes the row instead of striking it through |
 | **✕** on a row | deletes that item |
 | **Add** box | type one item per line; Enter adds |
+| **Drag a row** | reorders it — within its own group (unticked or ticked), written straight to the store |
+| **⤓** | export menu: Text, Markdown, CSV, JSON, or copy to the clipboard |
 | **× on the active tab** | deletes that whole list — asks first, then posts `Deleted list — <name> (N items)` to the chat |
 | **Tab ✕** | closes the pane; `Ctrl+K → "TickList: show checklist"` re-opens it by the same id, restoring the list you were on |
 
 Ticked rows collect at the bottom: unticked first, ticked gathered below, order
 preserved within each group — a checklist is read for what's left, but a row must
 not jump out from under the cursor.
+
+## Export
+
+**⤓** in the header offers four file shapes and a clipboard copy:
+
+| Format | Shape | Good for |
+|---|---|---|
+| Text | `[ ] item` / `[x] item`, with a done count | pasting into a message or a terminal |
+| Markdown | `- [ ] item` under a heading | Obsidian, GitHub issues, Notion — anything that reads task lists |
+| CSV | `done,text,created,done_at,id` | a spreadsheet, or a Todoist-style import |
+| JSON | the stored list verbatim | only lossless shape: ids and timestamps survive, so it can be re-imported |
+| Copy | the text shape, to the clipboard | a quick paste without a file on disk |
+
+Exports are served by `GET /lists/{name}/export?fmt=txt|md|csv|json`, which returns
+`{filename, mime, content}`; the pane turns that into a download, so nothing is
+written outside your Downloads folder.
 
 ## Tools
 
@@ -158,6 +176,8 @@ The pane polls cheap and fetches detail on demand:
 | `GET /lists/{name}` | one list with its rows | every 3s, for the list on screen |
 | `POST /lists`, `PATCH/DELETE /items/{id}`, `POST /clear` | full state after the write | on action |
 | `DELETE /lists/{name}` | full state plus `{deleted: {name, items}}` | on action |
+| `PATCH /lists/{name}/order` | full state, after reordering to `{ids: [...]}` | on drop |
+| `GET /lists/{name}/export?fmt=` | `{filename, mime, content}` | on export |
 | `GET /health` | `{ok, lists}` — never the exception text, which carries the store path | — |
 
 Item writes take `?list=<name>`. omitting it falls back to the active list, which is

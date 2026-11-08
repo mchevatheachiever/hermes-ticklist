@@ -16,10 +16,34 @@ import { useCallback, useEffect, useState } from 'react'
 
 const ID = 'ticklist'
 
-function Row({ item, onToggle, onRemove }) {
+function Row({ item, onToggle, onRemove, onDragStart, onDragOver, onDrop, dragging, dropTarget }) {
   const [busy, setBusy] = useState(false)
   return jsxs('div', {
     className: 'group flex items-start gap-2 rounded px-1 py-1 hover:bg-(--chrome-action-hover)',
+    draggable: true,
+    onDragStart: (event) => {
+      event.dataTransfer.effectAllowed = 'move'
+      // Firefox needs data set for a drag to start at all.
+      event.dataTransfer.setData('text/plain', item.id)
+      onDragStart(item)
+    },
+    onDragOver: (event) => {
+      event.preventDefault()
+      event.dataTransfer.dropEffect = 'move'
+      onDragOver(item)
+    },
+    onDrop: (event) => {
+      event.preventDefault()
+      onDrop(item)
+    },
+    onDragEnd: () => onDragStart(null),
+    style: {
+      opacity: dragging ? 0.4 : 1,
+      // A line where the row will land — inline, because a plugin's own Tailwind
+      // class would never be compiled into the app's CSS.
+      boxShadow: dropTarget ? 'inset 0 2px 0 0 var(--ui-accent)' : 'none',
+      cursor: 'grab'
+    },
     children: [
       jsx('button', {
         type: 'button',
@@ -83,6 +107,9 @@ function TickPane({ ctx }) {
   const [announce, setAnnounce] = useState(true)
   const [removeOnTick, setRemoveOnTick] = useState(false)
   const [pendingDelete, setPendingDelete] = useState('')
+  const [dragId, setDragId] = useState('')
+  const [overId, setOverId] = useState('')
+  const [exportOpen, setExportOpen] = useState(false)
 
   // Remembered across sessions; the pane state is scratch, this is the setting.
   useEffect(() => {
@@ -241,6 +268,66 @@ function TickPane({ ctx }) {
     }
   }, [ctx, list, post, refresh, total])
 
+  const moveItem = useCallback(
+    async (fromId, toId) => {
+      if (!fromId || !toId || fromId === toId || !list) return
+      const order = items.map((item) => item.id)
+      const from = order.indexOf(fromId)
+      const to = order.indexOf(toId)
+      if (from < 0 || to < 0) return
+      order.splice(to, 0, order.splice(from, 1)[0])
+      // Optimistic: the list is already on screen in this order.
+      try {
+        await ctx.rest(`/lists/${encodeURIComponent(list.id)}/order`, {
+          method: 'PATCH',
+          body: { ids: order }
+        })
+        refresh()
+      } catch (err) {
+        setError(`could not reorder: ${err && err.message ? err.message : err}`)
+        refresh()
+      }
+    },
+    [ctx, items, list, refresh]
+  )
+
+  const doExport = useCallback(
+    async (fmt) => {
+      setExportOpen(false)
+      if (!list) return
+      try {
+        const result = await ctx.rest(
+          `/lists/${encodeURIComponent(list.id)}/export?fmt=${fmt}`
+        )
+        const blob = new Blob([result.content], { type: result.mime })
+        const url = URL.createObjectURL(blob)
+        const anchor = document.createElement('a')
+        anchor.href = url
+        anchor.download = result.filename
+        document.body.appendChild(anchor)
+        anchor.click()
+        anchor.remove()
+        setTimeout(() => URL.revokeObjectURL(url), 1000)
+        host.notify({ kind: 'info', message: `Exported ${result.filename}` })
+      } catch (err) {
+        setError(`could not export: ${err && err.message ? err.message : err}`)
+      }
+    },
+    [ctx, list]
+  )
+
+  const copyList = useCallback(async () => {
+    setExportOpen(false)
+    if (!list) return
+    try {
+      const result = await ctx.rest(`/lists/${encodeURIComponent(list.id)}/export?fmt=txt`)
+      await navigator.clipboard.writeText(result.content)
+      host.notify({ kind: 'info', message: 'List copied to the clipboard' })
+    } catch (err) {
+      setError(`could not copy: ${err && err.message ? err.message : err}`)
+    }
+  }, [ctx, list])
+
   const add = useCallback(async () => {
     const lines = draft
       .split('\n')
@@ -286,6 +373,15 @@ function TickPane({ ctx }) {
       jsx(Button, {
         size: 'xs',
         variant: 'ghost',
+        onClick: () => setExportOpen((value) => !value),
+        title: 'Export this list',
+        'aria-label': 'Export this list',
+        'aria-expanded': exportOpen,
+        children: '⤓'
+      }),
+      jsx(Button, {
+        size: 'xs',
+        variant: 'ghost',
         onClick: () => setAnnounce((value) => !value),
         title: announce ? 'Ticks are posted to the chat' : 'Ticks stay in the pane',
         'aria-label': announce ? 'Stop posting ticks to the chat' : 'Post ticks to the chat',
@@ -310,6 +406,49 @@ function TickPane({ ctx }) {
     style: { minWidth: '18rem', width: '100%' },
     children: [
       header,
+
+      exportOpen && list
+        ? jsxs('div', {
+            className:
+              'flex shrink-0 flex-wrap items-center gap-1 rounded bg-(--ui-bg-quaternary) px-2 py-1',
+            children: [
+              jsx('span', {
+                className: 'text-[0.625rem] text-(--ui-text-quaternary)',
+                children: 'Export'
+              }),
+              jsx(Button, {
+                size: 'micro',
+                variant: 'secondary',
+                onClick: () => doExport('txt'),
+                children: 'Text'
+              }),
+              jsx(Button, {
+                size: 'micro',
+                variant: 'secondary',
+                onClick: () => doExport('md'),
+                children: 'Markdown'
+              }),
+              jsx(Button, {
+                size: 'micro',
+                variant: 'secondary',
+                onClick: () => doExport('csv'),
+                children: 'CSV'
+              }),
+              jsx(Button, {
+                size: 'micro',
+                variant: 'secondary',
+                onClick: () => doExport('json'),
+                children: 'JSON'
+              }),
+              jsx(Button, {
+                size: 'micro',
+                variant: 'ghost',
+                onClick: copyList,
+                children: 'Copy'
+              })
+            ]
+          })
+        : null,
 
       showTabs
         ? jsx('div', {
@@ -401,7 +540,39 @@ function TickPane({ ctx }) {
           ? jsx('div', {
               className: 'flex flex-col gap-0.5',
               children: items.map((item) =>
-                jsx(Row, { item, onToggle: toggle, onRemove: remove }, item.id)
+                jsx(
+                  Row,
+                  {
+                    item,
+                    onToggle: toggle,
+                    onRemove: remove,
+                    dragging: dragId === item.id,
+                    dropTarget: Boolean(
+                      overId === item.id &&
+                        dragId &&
+                        dragId !== item.id &&
+                        (items.find((entry) => entry.id === dragId) || {}).done === item.done
+                    ),
+                    onDragStart: (source) => {
+                      setDragId(source ? source.id : '')
+                      if (!source) setOverId('')
+                    },
+                    onDragOver: (target) => {
+                      const source = items.find((entry) => entry.id === dragId)
+                      // Only within a group: dropping an unticked row among the
+                      // ticked ones would be undone by the sort on the next poll.
+                      if (source && source.done === target.done) setOverId(target.id)
+                      else setOverId('')
+                    },
+                    onDrop: (target) => {
+                      const source = items.find((entry) => entry.id === dragId)
+                      setOverId('')
+                      setDragId('')
+                      if (source && source.done === target.done) moveItem(source.id, target.id)
+                    }
+                  },
+                  item.id
+                )
               )
             })
           : jsx('div', {
