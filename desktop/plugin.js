@@ -249,31 +249,19 @@ function TickPane({ ctx, onClose }) {
     })
   }
 
-  const chips = state.lists.length > 1
+  // A scrollable tab strip: every list is reachable, however many there are.
+  const showTabs = state.lists.length > 1
 
   return jsxs('div', {
     className: 'flex h-full min-h-0 flex-col gap-1.5 overflow-hidden p-2 text-sm',
     children: [
       header,
 
-      jsxs('label', {
-        className: 'flex cursor-pointer items-center gap-1.5 text-[0.6875rem] text-(--ui-text-tertiary)',
-        style: { userSelect: 'none' },
-        children: [
-          jsx('input', {
-            type: 'checkbox',
-            checked: removeOnTick,
-            onChange: (event) => setRemovePref(event.target.checked),
-            style: { accentColor: 'var(--ui-accent)', width: '12px', height: '12px' }
-          }),
-          jsx('span', { children: 'remove from list on tick' })
-        ]
-      }),
-
-      chips
+      showTabs
         ? jsx('div', {
-            className: 'flex flex-wrap gap-1',
-            children: state.lists.slice(0, 6).map((entry) =>
+            className: 'flex shrink-0 gap-1 overflow-x-auto whitespace-nowrap pb-0.5',
+            style: { scrollbarWidth: 'thin' },
+            children: state.lists.map((entry) =>
               jsx(
                 'button',
                 {
@@ -281,10 +269,10 @@ function TickPane({ ctx, onClose }) {
                   type: 'button',
                   onClick: () => setSelected(entry.id),
                   className: cn(
-                    'truncate rounded px-1.5 py-0.5 text-[0.6875rem] transition-colors',
+                    'shrink-0 rounded-t border-b-2 px-2 py-1 text-[0.6875rem] transition-colors',
                     entry.id === (list && list.id)
-                      ? 'bg-(--chrome-action-active) text-foreground'
-                      : 'text-(--ui-text-tertiary) hover:bg-(--chrome-action-hover)'
+                      ? 'border-(--ui-accent) text-foreground'
+                      : 'border-transparent text-(--ui-text-tertiary) hover:bg-(--chrome-action-hover)'
                   ),
                   children: `${entry.name} (${entry.done}/${entry.total})`
                 },
