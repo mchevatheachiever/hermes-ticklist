@@ -16,6 +16,26 @@ import { useCallback, useEffect, useState } from 'react'
 
 const ID = 'ticklist'
 
+// The pane's open state lives outside React: `openWorkspace` is a plain call with
+// a disposer, and the chip has to render "open" or "closed" from it.
+const pane = { dispose: null, listeners: new Set() }
+
+function setPaneOpen(dispose) {
+  pane.dispose = dispose
+  for (const listener of pane.listeners) listener(Boolean(dispose))
+}
+
+function useIsPaneOpen() {
+  const [open, setOpen] = useState(Boolean(pane.dispose))
+  useEffect(() => {
+    const listener = (value) => setOpen(value)
+    pane.listeners.add(listener)
+    setOpen(Boolean(pane.dispose))
+    return () => pane.listeners.delete(listener)
+  }, [])
+  return open
+}
+
 // ---- pure reorder arithmetic -------------------------------------------- #
 // Kept as top-level functions so tests/reorder.test.mjs can extract and run
 // them in Node: a plugin cannot import its own siblings (only @hermes/plugin-sdk,
@@ -1102,40 +1122,24 @@ function TickPane({ ctx }) {
 
 
 
-function StatusChip({ ctx, onOpen }) {
-  const query = useQuery({
-    queryKey: ['ticklist', 'chip'],
-    queryFn: () => ctx.rest('/lists'),
-    // The pane polls at 3s while it is open; this one never sleeps, so 15s.
-    refetchInterval: 15000,
-    retry: 1
-  })
-  const lists = (query.data && query.data.lists) || []
-  const active = (query.data && query.data.active) || ''
-  const list = lists.find((entry) => entry.id === active) || lists[0] || null
-  // The pane can be showing a different tab than the store's "active" one, so
-  // the chip names the list it is counting instead of implying the other.
-  // Names run to 200 characters and the status bar doesn't truncate for us.
-  const shortName = list
-    ? list.name.length > 20
-      ? `${list.name.slice(0, 19)}…`
-      : list.name
-    : ''
-  const label = list ? `${shortName} ${list.done}/${list.total}` : '—'
+function StatusChip({ onToggle }) {
+  const isOpen = useIsPaneOpen()
 
+  // An icon and nothing else: the zone itself collapses via the terminal's pill
+  // (our pane docks in that zone), so this only needs to say which tab it is.
   return jsx('button', {
     type: 'button',
     onClick: () => {
       haptic('tap')
-      if (!onOpen()) {
-        host.notify({ kind: 'error', message: 'This desktop cannot open the pane — use the palette' })
-      }
+      onToggle()
     },
-    title: 'TickList — open the checklist',
-    'aria-label': 'Open the TickList pane',
+    title: isOpen ? 'TickList — close the pane' : 'TickList — open the pane',
+    'aria-label': isOpen ? 'Close the TickList pane' : 'Open the TickList pane',
+    'aria-pressed': isOpen,
     className:
-      'inline-flex h-full items-center gap-1 px-1.5 text-[0.6875rem] transition-colors text-(--ui-text-tertiary) hover:bg-(--chrome-action-hover) hover:text-foreground',
-    children: `☑ ${label}`
+      'inline-flex h-full items-center px-1.5 text-[0.75rem] transition-colors text-(--ui-text-tertiary) hover:bg-(--chrome-action-hover) hover:text-foreground',
+    style: { opacity: isOpen ? 1 : 0.6 },
+    children: '☑'
   })
 }
 
@@ -1155,7 +1159,7 @@ export default {
         return false
       }
       try {
-        host.openWorkspace('ticklist', {
+        const dispose = host.openWorkspace('ticklist', {
           title: 'ticks',
           // Land in the SAME zone as the terminal pane, as a sibling tab —
           // pos:'center' stacks into the anchor's group (pos:'right' would split
@@ -1165,12 +1169,28 @@ export default {
           // A floor on the tile's width: without it the right-zone sash happily
           // collapses the pane to nothing and the list is unreadable.
           minWidth: '20rem',
+          onClose: () => setPaneOpen(null),
           render: () => jsx(TickPane, { ctx })
         })
+        setPaneOpen(typeof dispose === 'function' ? dispose : true)
         return true
       } catch {
         return false
       }
+    }
+
+    // The chip toggles, the way the terminal's status-bar button does.
+    const toggle = () => {
+      if (typeof pane.dispose === 'function') {
+        try {
+          pane.dispose()
+        } catch {
+          setPaneOpen(null)
+        }
+        setPaneOpen(null)
+        return true
+      }
+      return open()
     }
 
     if (!open()) {
@@ -1191,7 +1211,7 @@ export default {
       id: 'chip',
       area: 'statusBar.right',
       order: 128,
-      render: () => jsx(StatusChip, { ctx, onOpen: open })
+      render: () => jsx(StatusChip, { onToggle: toggle })
     })
 
     ctx.register({

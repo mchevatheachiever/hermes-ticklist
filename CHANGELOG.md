@@ -2,6 +2,23 @@
 
 All notable changes to this plugin. Versions follow the `plugin.yaml` version.
 
+## 1.8.3 — 2026-11-08
+
+### Changed
+- **The status-bar chip is a toggle, and just an icon.** `☑` opens or closes this pane's
+  tab, dimmed when closed, with `aria-pressed` and a tooltip that says which way it goes.
+  It tracks real state through the disposer `openWorkspace` returns, so closing via the
+  tab's × flips it back too. Dropping the counts also dropped the chip's own `/lists`
+  poll — it no longer makes a request of its own.
+- Panel-level collapse stays where the app puts it: the terminal pill collapses the whole
+  zone (this pane included) and the rail's `TICKS` label reopens it. A plugin cannot
+  trigger that itself — `togglePaneVisible` is app-internal.
+
+### Fixed
+- `scripts/check_setters.py` false-positived on a file that declares its own helpers:
+  `function setFoo(...)` was reported as a dead `useState`, and `function useFoo(...)` as
+  an unimported hook. Both are now recognised as local declarations.
+
 ## 1.8.2 — 2026-11-08
 
 ### Fixed

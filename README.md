@@ -58,7 +58,7 @@ makes the agent see it.
 |---|---|
 | **Tabs** | one per list, showing `done/total`; they wrap, and scroll past five rows |
 | **＋** | create a new list — type a name, Enter. It opens empty and becomes active (if the name already exists it switches to that list instead) |
-| **☑ done/total** (status bar) | opens the pane; stays visible when the tab is closed |
+| **☑** (status bar) | opens or closes this pane's tab; dimmed when closed. The whole side panel is collapsed by the terminal pill, which takes this pane with it |
 | **Drag a tab** | reorders the strip; drop on the left or right half of a tab to land before or after it. Pinned tabs reorder among themselves. Focused, **←** / **→** also moves it |
 | **📌 on a tab** | a pinned list sits at the front of the strip |
 | **Checkbox** | ticks or unticks the row and announces it in the chat |
