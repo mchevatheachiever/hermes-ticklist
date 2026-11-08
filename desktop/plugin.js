@@ -25,7 +25,8 @@ function Row({
   onDrop,
   onNudge,
   dragging,
-  dropTarget
+  dropTarget,
+  dropAfter
 }) {
   const [busy, setBusy] = useState(false)
   return jsxs('div', {
@@ -34,17 +35,25 @@ function Row({
     onDragOver: (event) => {
       event.preventDefault()
       event.dataTransfer.dropEffect = 'move'
-      onDragOver(item)
+      const box = event.currentTarget.getBoundingClientRect()
+      // Lower half means "after this row", which is the only way to reach the
+      // last position in a group — every other drop inserts before the target.
+      onDragOver(item, event.clientY - box.top > box.height / 2)
     },
     onDrop: (event) => {
       event.preventDefault()
-      onDrop(item)
+      const box = event.currentTarget.getBoundingClientRect()
+      onDrop(item, event.clientY - box.top > box.height / 2)
     },
     style: {
       opacity: dragging ? 0.4 : 1,
       // A line where the row will land — inline, because a plugin's own Tailwind
       // class would never be compiled into the app's CSS.
-      boxShadow: dropTarget ? 'inset 0 2px 0 0 var(--ui-accent)' : 'none'
+      boxShadow: dropTarget
+        ? dropAfter
+          ? 'inset 0 -2px 0 0 var(--ui-accent)'
+          : 'inset 0 2px 0 0 var(--ui-accent)'
+        : 'none'
     },
     children: [
       // The grip is the handle — only it is draggable, so item text stays
@@ -152,7 +161,11 @@ function TickPane({ ctx }) {
   const [exportOpen, setExportOpen] = useState(false)
   const [tabDragId, setTabDragId] = useState('')
   const [tabOverId, setTabOverId] = useState('')
+  const [tabOverAfter, setTabOverAfter] = useState(false)
+  const [overAfter, setOverAfter] = useState(false)
   const [lastAction, setLastAction] = useState(null)
+  const [newListOpen, setNewListOpen] = useState(false)
+  const [newListName, setNewListName] = useState('')
 
   // Remembered across sessions; the pane state is scratch, this is the setting.
   useEffect(() => {
@@ -226,6 +239,10 @@ function TickPane({ ctx }) {
   const done = list ? list.done : 0
   const total = list ? list.total : 0
 
+  // An error line that only ever gets written is a bug of its own: a failure
+  // from before a reload stayed on screen through every later success.
+  const clearError = useCallback(() => setError(''), [])
+
   const refresh = useCallback(() => {
     query.refetch()
     detail.refetch()
@@ -271,6 +288,7 @@ function TickPane({ ctx }) {
             rows: snapshot,
             label: `Removed "${item.text}"`
           })
+          clearError()
           refresh()
           post(`Ticked and removed — ${item.text}`)
           return
@@ -279,6 +297,7 @@ function TickPane({ ctx }) {
           method: 'PATCH',
           body: { done: !item.done }
         })
+        clearError()
         refresh()
         post(`${item.done ? 'Unticked' : 'Ticked'} — ${item.text}`)
       } catch (err) {
@@ -295,13 +314,14 @@ function TickPane({ ctx }) {
       try {
         await ctx.rest(listPath(item.id), { method: 'DELETE' })
         setLastAction({ kind: 'remove', name, id: list ? list.id : '', rows: snapshot, label: `Removed "${item.text}"` })
+        clearError()
         refresh()
         post(`Removed — ${item.text}`)
       } catch (err) {
         setError(`could not remove: ${err && err.message ? err.message : err}`)
       }
     },
-    [ctx, list, listPath, post, refresh, rows]
+    [clearError, ctx, list, listPath, post, refresh, rows]
   )
 
   const deleteList = useCallback(async () => {
@@ -326,6 +346,26 @@ function TickPane({ ctx }) {
     }
   }, [ctx, list, post, refresh, rows, total])
 
+  const createList = useCallback(async () => {
+    const name = newListName.trim()
+    if (!name) return
+    try {
+      await ctx.rest('/lists', {
+        method: 'POST',
+        body: { list: name, create_empty: true }
+      })
+      const created = name.charAt(0).toUpperCase() + name.slice(1)
+      setNewListOpen(false)
+      setNewListName('')
+      setSelected('')
+      clearError()
+      refresh()
+      host.notify({ kind: 'info', message: `Created "${created}"` })
+    } catch (err) {
+      setError(`could not create: ${err && err.message ? err.message : err}`)
+    }
+  }, [ctx, newListName, refresh])
+
   const togglePin = useCallback(async () => {
     if (!list) return
     haptic('tap')
@@ -334,6 +374,7 @@ function TickPane({ ctx }) {
         method: 'PATCH',
         body: { pinned: !list.pinned }
       })
+      clearError()
       refresh()
     } catch (err) {
       setError(`could not pin: ${err && err.message ? err.message : err}`)
@@ -351,12 +392,13 @@ function TickPane({ ctx }) {
         body: { done_only: true }
       })
       setLastAction({ kind: 'clear', name, id: list.id, rows: snapshot, label: `Cleared ${count} ticked` })
+      clearError()
       refresh()
       post(`Cleared ${count} ticked from ${name}`)
     } catch (err) {
       setError(`could not clear: ${err && err.message ? err.message : err}`)
     }
-  }, [ctx, done, list, post, refresh, rows])
+  }, [clearError, ctx, done, list, post, refresh, rows])
 
   const undoLast = useCallback(async () => {
     if (!lastAction) return
@@ -378,12 +420,13 @@ function TickPane({ ctx }) {
         body: { items: snapshot }
       })
       setLastAction(null)
+      clearError()
       refresh()
       post(`Restored — ${name}`)
     } catch (err) {
       setError(`could not restore: ${err && err.message ? err.message : err}`)
     }
-  }, [ctx, lastAction, post, refresh])
+  }, [clearError, ctx, lastAction, post, refresh])
 
   // The undo window closes on its own; a stale offer to restore is worse than
   // no offer at all once other work has happened.
@@ -403,25 +446,26 @@ function TickPane({ ctx }) {
   }, [lastAction])
 
   const moveItem = useCallback(
-    async (fromId, toId) => {
+    async (fromId, toId, after = false) => {
       if (!fromId || !toId || fromId === toId || !list) return
       const order = items.map((item) => item.id)
-      const from = order.indexOf(fromId)
-      const to = order.indexOf(toId)
-      if (from < 0 || to < 0) return
-      const [moved] = order.splice(from, 1)
-      // Removing the source shifts everything above it, so a downward move has
-      // to land one slot earlier than the target's original index — otherwise
-      // the row lands *below* the one the indicator pointed above.
-      order.splice(from < to ? to - 1 : to, 0, moved)
+      if (!order.includes(fromId) || !order.includes(toId)) return
+      // Take the source out first, then look the target up again: every index
+      // above the source has shifted, and `after` has to mean "after the target
+      // as it now sits", not "after the index it used to have".
+      const [moved] = order.splice(order.indexOf(fromId), 1)
+      const at = order.indexOf(toId)
+      order.splice(after ? at + 1 : at, 0, moved)
       try {
         await ctx.rest(`/lists/${encodeURIComponent(list.id)}/order`, {
           method: 'PATCH',
           body: { ids: order }
         })
+        clearError()
         refresh()
       } catch (err) {
         setError(`could not reorder: ${err && err.message ? err.message : err}`)
+        clearError()
         refresh()
       }
     },
@@ -431,20 +475,43 @@ function TickPane({ ctx }) {
   // Tab drags stay inside a pinned group for the same reason row drags do: the
   // pinned-first sort would put a pinned tab straight back at the front.
   const moveTab = useCallback(
-    (fromId, toId) => {
+    (fromId, toId, after = false) => {
       if (!fromId || !toId || fromId === toId) return
       const order = state.lists.map((entry) => entry.id)
-      const from = order.indexOf(fromId)
-      const to = order.indexOf(toId)
-      if (from < 0 || to < 0) return
-      const [moved] = order.splice(from, 1)
-      order.splice(from < to ? to - 1 : to, 0, moved)
+      if (!order.includes(fromId) || !order.includes(toId)) return
+      const [moved] = order.splice(order.indexOf(fromId), 1)
+      const at = order.indexOf(toId)
+      order.splice(after ? at + 1 : at, 0, moved)
       ctx
         .rest('/order', { method: 'PATCH', body: { ids: order } })
-        .then(refresh)
+        .then(() => {
+          clearError()
+          refresh()
+        })
         .catch((err) => setError(`could not reorder tabs: ${err && err.message ? err.message : err}`))
     },
-    [ctx, refresh, state.lists]
+    [clearError, ctx, refresh, state.lists]
+  )
+
+  const nudgeTab = useCallback(
+    (entry, delta) => {
+      const group = state.lists.filter((item) => item.pinned === entry.pinned)
+      const at = group.findIndex((item) => item.id === entry.id)
+      const neighbour = group[at + delta]
+      if (!neighbour) return
+      const order = state.lists.map((item) => item.id)
+      const [moved] = order.splice(order.indexOf(entry.id), 1)
+      order.splice(order.indexOf(neighbour.id), delta < 0 ? 0 : 1, moved)
+      haptic('tap')
+      ctx
+        .rest('/order', { method: 'PATCH', body: { ids: order } })
+        .then(() => {
+          clearError()
+          refresh()
+        })
+        .catch((err) => setError(`could not reorder tabs: ${err && err.message ? err.message : err}`))
+    },
+    [clearError, ctx, refresh, state.lists]
   )
 
   const nudge = useCallback(
@@ -523,6 +590,7 @@ function TickPane({ ctx }) {
       setDraft('')
       setError('')
       haptic('tap')
+      clearError()
       refresh()
       post(lines.length === 1 ? `Added — ${lines[0]}` : `Added ${lines.length} items`)
     } catch (err) {
@@ -550,6 +618,18 @@ function TickPane({ ctx }) {
       jsx('span', {
         className: 'shrink-0 text-[0.625rem] text-(--ui-text-quaternary)',
         children: `${done}/${total}`
+      }),
+      jsx(Button, {
+        size: 'xs',
+        variant: 'ghost',
+        onClick: () => {
+          setNewListOpen((value) => !value)
+          setNewListName('')
+        },
+        title: 'New list',
+        'aria-label': 'New list',
+        'aria-expanded': newListOpen,
+        children: '＋'
       }),
       jsx(Button, {
         size: 'xs',
@@ -597,6 +677,46 @@ function TickPane({ ctx }) {
     style: { minWidth: '18rem', width: '100%' },
     children: [
       header,
+
+      newListOpen
+        ? jsxs('div', {
+            className:
+              'flex shrink-0 items-center gap-1 rounded bg-(--ui-bg-quaternary) px-2 py-1',
+            children: [
+              jsx('input', {
+                type: 'text',
+                value: newListName,
+                autoFocus: true,
+                placeholder: 'New list name',
+                'aria-label': 'New list name',
+                onChange: (event) => setNewListName(event.target.value),
+                onKeyDown: (event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault()
+                    createList()
+                  }
+                  if (event.key === 'Escape') setNewListOpen(false)
+                },
+                className:
+                  'min-w-0 flex-1 bg-transparent text-[0.6875rem] outline-none',
+                style: { color: 'var(--ui-text-primary)' }
+              }),
+              jsx(Button, {
+                size: 'micro',
+                variant: 'default',
+                onClick: createList,
+                disabled: !newListName.trim(),
+                children: 'Create'
+              }),
+              jsx(Button, {
+                size: 'micro',
+                variant: 'ghost',
+                onClick: () => setNewListOpen(false),
+                children: 'Cancel'
+              })
+            ]
+          })
+        : null,
 
       exportOpen && list
         ? jsxs('div', {
@@ -656,24 +776,38 @@ function TickPane({ ctx }) {
                   onDragOver: (event) => {
                     event.preventDefault()
                     event.dataTransfer.dropEffect = 'move'
+                    const box = event.currentTarget.getBoundingClientRect()
+                    // Right half means "after this tab": every other drop lands
+                    // before the target, which makes the last slot in a group
+                    // unreachable and a one-slot downward drag a no-op.
+                    const after = event.clientX - box.left > box.width / 2
                     const source = state.lists.find((item) => item.id === tabDragId)
                     if (source && source.pinned === entry.pinned && source.id !== entry.id) {
                       setTabOverId(entry.id)
+                      setTabOverAfter(after)
                     } else {
                       setTabOverId('')
                     }
                   },
                   onDrop: (event) => {
                     event.preventDefault()
+                    const box = event.currentTarget.getBoundingClientRect()
+                    const after = event.clientX - box.left > box.width / 2
                     const source = state.lists.find((item) => item.id === tabDragId)
                     setTabOverId('')
                     setTabDragId('')
-                    if (source && source.pinned === entry.pinned) moveTab(source.id, entry.id)
+                    if (source && source.pinned === entry.pinned) {
+                      moveTab(source.id, entry.id, after)
+                    }
                   },
                   style: {
                     opacity: tabDragId === entry.id ? 0.4 : 1,
                     boxShadow:
-                      tabOverId === entry.id ? 'inset 2px 0 0 0 var(--ui-accent)' : 'none'
+                      tabOverId === entry.id
+                        ? tabOverAfter
+                          ? 'inset -2px 0 0 0 var(--ui-accent)'
+                          : 'inset 2px 0 0 0 var(--ui-accent)'
+                        : 'none'
                   },
                   children: [
                     // A span, not a button: Chromium refuses to start a drag from
@@ -700,6 +834,10 @@ function TickPane({ ctx }) {
                         if (event.key === 'Enter' || event.key === ' ') {
                           event.preventDefault()
                           setSelected(entry.id)
+                        }
+                        if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+                          event.preventDefault()
+                          nudgeTab(entry, event.key === 'ArrowLeft' ? -1 : 1)
                         }
                       },
                       onDragStart: (event) => {
@@ -830,6 +968,7 @@ function TickPane({ ctx }) {
                     onRemove: remove,
                     onNudge: nudge,
                     dragging: dragId === item.id,
+                    dropAfter: overAfter,
                     dropTarget: Boolean(
                       overId === item.id &&
                         dragId &&
@@ -840,18 +979,24 @@ function TickPane({ ctx }) {
                       setDragId(source ? source.id : '')
                       if (!source) setOverId('')
                     },
-                    onDragOver: (target) => {
+                    onDragOver: (target, after) => {
                       const source = items.find((entry) => entry.id === dragId)
                       // Only within a group: dropping an unticked row among the
                       // ticked ones would be undone by the sort on the next poll.
-                      if (source && source.done === target.done) setOverId(target.id)
-                      else setOverId('')
+                      if (source && source.done === target.done) {
+                        setOverId(target.id)
+                        setOverAfter(after)
+                      } else {
+                        setOverId('')
+                      }
                     },
-                    onDrop: (target) => {
+                    onDrop: (target, after) => {
                       const source = items.find((entry) => entry.id === dragId)
                       setOverId('')
                       setDragId('')
-                      if (source && source.done === target.done) moveItem(source.id, target.id)
+                      if (source && source.done === target.done) {
+                        moveItem(source.id, target.id, after)
+                      }
                     }
                   },
                   item.id
@@ -929,6 +1074,33 @@ function TickPane({ ctx }) {
 }
 
 
+
+function StatusChip({ ctx, onOpen }) {
+  const query = useQuery({
+    queryKey: ['ticklist', 'chip'],
+    queryFn: () => ctx.rest('/lists'),
+    refetchInterval: 5000,
+    retry: 1
+  })
+  const lists = (query.data && query.data.lists) || []
+  const active = (query.data && query.data.active) || ''
+  const list = lists.find((entry) => entry.id === active) || lists[0] || null
+  const label = list ? `${list.done}/${list.total}` : '—'
+
+  return jsx('button', {
+    type: 'button',
+    onClick: () => {
+      haptic('tap')
+      onOpen()
+    },
+    title: 'TickList — open the checklist',
+    'aria-label': 'Open the TickList pane',
+    className:
+      'inline-flex h-full items-center gap-1 px-1.5 text-[0.6875rem] transition-colors text-(--ui-text-tertiary) hover:bg-(--chrome-action-hover) hover:text-foreground',
+    children: `☑ ${label}`
+  })
+}
+
 export default {
   id: ID,
   name: 'TickList',
@@ -973,6 +1145,16 @@ export default {
         render: () => jsx(TickPane, { ctx })
       })
     }
+
+    // The chip is the door that survives closing the tab: the pane is a
+    // permanent tab in normal use, but once the tab's × is used, opening it is
+    // otherwise a palette command — i.e. typing.
+    ctx.register({
+      id: 'chip',
+      area: 'statusBar.right',
+      order: 128,
+      render: () => jsx(StatusChip, { ctx, onOpen: open })
+    })
 
     ctx.register({
       id: 'toggle',

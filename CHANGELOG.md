@@ -2,6 +2,26 @@
 
 All notable changes to this plugin. Versions follow the `plugin.yaml` version.
 
+## 1.8.0 — 2026-11-08
+
+### Added
+- **New list from the pane** — `＋` in the header opens a naming row (Enter creates,
+  Escape cancels); the list opens empty and becomes active. The API already had the
+  empty-list path from the undo work.
+- **Status-bar chip is back** — `☑ done/total`, click to open the pane. It was removed
+  in 1.7.0 as a redundant second door, then missed the moment the tab was closed: the
+  palette is the only other way in, and that is typing.
+- **← / → reorders a focused tab**, matching what ↑ / ↓ already did for rows.
+
+### Fixed
+- **Dropping always inserted *before* the target**, so the last slot in a group was
+  unreachable and a one-slot downward drag computed back to its own index and did
+  nothing. The pointer's half of the row/tab now decides: left/upper lands before,
+  right/lower lands after.
+- **The error line never cleared.** A failure left the message on screen through every
+  later success — a stale 404 looked like a live bug.
+- Tab drags no longer depend on the insert index from the pre-removal array.
+
 ## 1.7.5 — 2026-11-08
 
 README rewritten for people installing the plugin, not for reviewers.

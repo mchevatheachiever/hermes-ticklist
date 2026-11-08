@@ -52,7 +52,9 @@ makes the agent see it.
 | Control | What it does |
 |---|---|
 | **Tabs** | one per list, showing `done/total`; they wrap, and scroll past five rows |
-| **Drag a tab** | reorders the strip; pinned tabs reorder among themselves |
+| **＋** | create a new list — type a name, Enter. It opens empty and becomes active |
+| **☑ done/total** (status bar) | opens the pane; stays visible when the tab is closed |
+| **Drag a tab** | reorders the strip; drop on the left or right half of a tab to land before or after it. Pinned tabs reorder among themselves. Focused, **←** / **→** also moves it |
 | **📌 on a tab** | a pinned list sits at the front of the strip |
 | **Checkbox** | ticks or unticks the row and announces it in the chat |
 | **⠿ handle** | drag to reorder a row, or focus it and press ↑ / ↓ |
