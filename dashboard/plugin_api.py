@@ -111,6 +111,17 @@ async def get_list(name: str) -> dict[str, Any]:
     return {"ok": True, "list": _view(entry)}
 
 
+@router.delete("/lists/{name}")
+async def delete_list(name: str) -> dict[str, Any]:
+    try:
+        deleted = core.TickStore().delete_list(name)
+    except core.TickError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"store unwritable: {exc}") from exc
+    return {**_state(), "deleted": deleted}
+
+
 @router.post("/lists")
 async def add_items(payload: AddPayload) -> dict[str, Any]:
     try:

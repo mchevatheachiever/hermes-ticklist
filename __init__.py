@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from . import art, core, schemas
-from .tools import tick_add, tick_clear, tick_list, tick_remove, tick_set
+from .tools import tick_add, tick_clear, tick_delete_list, tick_list, tick_remove, tick_set
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +71,14 @@ def register(ctx: Any) -> None:
         description="Empty a checklist, or just its finished items.",
     )
 
+    ctx.register_tool(
+        name="tick_delete_list",
+        toolset="ticklist",
+        schema=schemas.DELETE_LIST,
+        handler=tick_delete_list,
+        description="Delete a whole checklist and everything on it.",
+    )
+
     skill_file = Path(__file__).resolve().parent / "skills" / _ID / "SKILL.md"
     if skill_file.exists():
         try:
@@ -90,4 +98,4 @@ def register(ctx: Any) -> None:
     except (core.TickError, OSError) as exc:  # pragma: no cover - never block loading
         logger.debug("ticklist: seed skipped: %s", exc)
 
-    logger.debug("ticklist: registered 5 tools")
+    logger.debug("ticklist: registered 6 tools")

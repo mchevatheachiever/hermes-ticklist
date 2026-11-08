@@ -2,6 +2,16 @@
 
 All notable changes to this plugin. Versions follow the `plugin.yaml` version.
 
+## 1.2.0 — 2026-11-08
+
+### Added
+- **Delete a whole list.** `×` on the active tab, with an inline confirmation that
+  names the list and how many items go with it; the deletion is announced in the
+  chat (`Deleted list — Beer run (5 items)`). Backed by `DELETE /lists/{name}` and a
+  sixth tool, `tick_delete_list`, so the agent can do the same thing when asked.
+- Deleting the active list moves `active` to a surviving list; deleting the last one
+  leaves an empty store that does not re-seed the example.
+
 ## 1.1.3 — 2026-11-08
 
 ### Added

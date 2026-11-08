@@ -82,6 +82,7 @@ function TickPane({ ctx }) {
   const [selected, setSelected] = useState('')
   const [announce, setAnnounce] = useState(true)
   const [removeOnTick, setRemoveOnTick] = useState(false)
+  const [pendingDelete, setPendingDelete] = useState('')
 
   // Remembered across sessions; the pane state is scratch, this is the setting.
   useEffect(() => {
@@ -220,6 +221,26 @@ function TickPane({ ctx }) {
     [ctx, listPath, post, refresh]
   )
 
+  const deleteList = useCallback(async () => {
+    if (!list) return
+    const name = list.name
+    const count = total
+    try {
+      await ctx.rest(`/lists/${encodeURIComponent(list.id)}`, { method: 'DELETE' })
+      setPendingDelete('')
+      setSelected('')
+      try {
+        Promise.resolve(ctx.storage.set('selectedList', '')).catch(() => {})
+      } catch {
+        /* non-fatal */
+      }
+      refresh()
+      post(`Deleted list — ${name} (${count} item${count === 1 ? '' : 's'})`)
+    } catch (err) {
+      setError(`could not delete: ${err && err.message ? err.message : err}`)
+    }
+  }, [ctx, list, post, refresh, total])
+
   const add = useCallback(async () => {
     const lines = draft
       .split('\n')
@@ -297,37 +318,80 @@ function TickPane({ ctx }) {
             className: 'flex shrink-0 flex-wrap gap-1 pb-0.5',
             style: { scrollbarWidth: 'thin', maxHeight: '7rem', overflowY: 'auto' },
             children: state.lists.map((entry) =>
-              jsx(
-                'button',
+              jsxs(
+                'div',
                 {
-                  key: entry.id,
-                  type: 'button',
-                  onClick: () => {
-                    setSelected(entry.id)
-                    try {
-                      Promise.resolve(ctx.storage.set('selectedList', entry.id)).catch(() => {})
-                    } catch {
-                      /* non-fatal: the tab just won't be remembered */
-                    }
-                  },
-                  className: cn(
-                    'shrink-0 whitespace-nowrap rounded-t px-2 py-1 text-[0.6875rem] transition-colors',
+                  className: 'flex shrink-0 items-center',
+                  children: [
+                    jsx('button', {
+                      type: 'button',
+                      onClick: () => {
+                        setSelected(entry.id)
+                        try {
+                          Promise.resolve(ctx.storage.set('selectedList', entry.id)).catch(() => {})
+                        } catch {
+                          /* non-fatal: the tab just won't be remembered */
+                        }
+                      },
+                      className: cn(
+                        'shrink-0 whitespace-nowrap rounded-t px-2 py-1 text-[0.6875rem] transition-colors',
+                        entry.id === (list && list.id)
+                          ? 'text-foreground'
+                          : 'text-(--ui-text-tertiary) hover:bg-(--chrome-action-hover)'
+                      ),
+                      // Inline, not `border-b-2`: Tailwind v4 only compiles classes
+                      // found under apps/desktop/src, so a plugin class never exists.
+                      style: {
+                        borderBottom: `2px solid ${
+                          entry.id === (list && list.id) ? 'var(--ui-accent)' : 'transparent'
+                        }`
+                      },
+                      children: `${entry.name} (${entry.done}/${entry.total})`
+                    }),
                     entry.id === (list && list.id)
-                      ? 'text-foreground'
-                      : 'text-(--ui-text-tertiary) hover:bg-(--chrome-action-hover)'
-                  ),
-                  // Inline, not `border-b-2`: Tailwind v4 only compiles classes
-                  // found under apps/desktop/src, so a plugin class never exists.
-                  style: {
-                    borderBottom: `2px solid ${
-                      entry.id === (list && list.id) ? 'var(--ui-accent)' : 'transparent'
-                    }`
-                  },
-                  children: `${entry.name} (${entry.done}/${entry.total})`
+                      ? jsx('button', {
+                          type: 'button',
+                          title: `Delete the list "${entry.name}"`,
+                          'aria-label': `Delete the list ${entry.name}`,
+                          onClick: () => {
+                            haptic('tap')
+                            setPendingDelete(entry.id)
+                          },
+                          className:
+                            'shrink-0 px-1 pb-0.5 text-[0.75rem] leading-none text-(--ui-text-quaternary) hover:text-foreground',
+                          children: '×'
+                        })
+                      : null
+                  ]
                 },
                 entry.id
               )
             )
+          })
+        : null,
+
+      pendingDelete && list && pendingDelete === list.id
+        ? jsxs('div', {
+            className:
+              'flex shrink-0 flex-wrap items-center gap-1.5 rounded bg-(--ui-bg-quaternary) px-2 py-1 text-[0.6875rem]',
+            children: [
+              jsx('span', {
+                className: 'min-w-0 flex-1 truncate',
+                children: `Delete "${list.name}" and its ${total} item${total === 1 ? '' : 's'}?`
+              }),
+              jsx(Button, {
+                size: 'micro',
+                variant: 'destructive',
+                onClick: deleteList,
+                children: 'Delete'
+              }),
+              jsx(Button, {
+                size: 'micro',
+                variant: 'ghost',
+                onClick: () => setPendingDelete(''),
+                children: 'Cancel'
+              })
+            ]
           })
         : null,
 

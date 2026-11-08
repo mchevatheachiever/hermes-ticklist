@@ -69,6 +69,7 @@ which is what makes the agent see it.
 | **☐ remove from list on tick** | off by default, remembered across sessions; with it on a tick deletes the row instead of striking it through |
 | **✕** on a row | deletes that item |
 | **Add** box | type one item per line; Enter adds |
+| **× on the active tab** | deletes that whole list — asks first, then posts `Deleted list — <name> (N items)` to the chat |
 | **Tab ✕** | closes the pane; `Ctrl+K → "TickList: show checklist"` re-opens it by the same id, restoring the list you were on |
 
 Ticked rows collect at the bottom: unticked first, ticked gathered below, order
@@ -84,6 +85,7 @@ not jump out from under the cursor.
 | `tick_list` | Read a list with done/total |
 | `tick_remove` | Delete an item |
 | `tick_clear` | Empty a list, or `done_only: true` |
+| `tick_delete_list` | Delete an entire list — not the same as emptying it |
 
 Plus a bundled skill (`ticklist:ticklist`) and `/tick [list]`, which prints the list
 without spending a model turn.
@@ -155,6 +157,7 @@ The pane polls cheap and fetches detail on demand:
 | `GET /lists` | every list as `{id, name, done, total}` — plus the rows of the active list, so a pane that hasn't reloaded still paints | every 3s |
 | `GET /lists/{name}` | one list with its rows | every 3s, for the list on screen |
 | `POST /lists`, `PATCH/DELETE /items/{id}`, `POST /clear` | full state after the write | on action |
+| `DELETE /lists/{name}` | full state plus `{deleted: {name, items}}` | on action |
 | `GET /health` | `{ok, lists}` — never the exception text, which carries the store path | — |
 
 Item writes take `?list=<name>`. omitting it falls back to the active list, which is

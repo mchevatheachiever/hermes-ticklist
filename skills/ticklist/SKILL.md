@@ -1,7 +1,7 @@
 ---
 name: ticklist
 description: "Tick-list items in the Desktop pane; every tick reaches the agent."
-version: 1.1.3
+version: 1.2.0
 ---
 
 # TickList
@@ -29,6 +29,7 @@ Do **not** use it as scratch memory for your own multi-step work — that is wha
 | `tick_list` | Read a list with done/total counts. |
 | `tick_remove` | Delete an item (not the same as unticking). |
 | `tick_clear` | Empty a list, or `done_only: true` to clear the finished ones. |
+| `tick_delete_list` | Delete a list and everything on it. Not the same as `tick_clear`. |
 
 Every tool returns a `display` field — a text checklist. Copy it into your reply
 exactly, in one fenced code block, so the list is visible in CLI, TUI and Discord.
@@ -43,8 +44,8 @@ which one, or pass the item id (ids come back in `tick_list`).
 
 Checkboxes, an add box, a scrolling strip of per-list tabs with `done/total`, a 💬
 toggle that decides whether a tick is posted into the chat, a chevron that collapses
-the pane to its header, and a checkbox for **remove from list on tick** (off by
-default, remembered). The pane lives as a tab beside TERMINAL; if it is closed,
+the pane to its header, a checkbox for **remove from list on tick** (off by default,
+remembered), and an `×` on the active tab that deletes that list after confirming. The pane lives as a tab beside TERMINAL; if it is closed,
 `Ctrl+K → "TickList: show checklist"` reopens it on the list the user was reading.
 
 Unticked rows sit above ticked ones in both the pane and the text checklist.

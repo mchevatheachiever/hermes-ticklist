@@ -83,6 +83,16 @@ class ApiTest(unittest.TestCase):
         audio = next(entry for entry in scoped.json()["lists"] if entry["id"] == "audio")
         self.assertEqual(audio["done"], 1)
 
+    def test_delete_list_route(self):
+        self.client.post("/api/plugins/ticklist/lists", json={"items": ["a", "b"], "list": "shop"})
+        self.client.post("/api/plugins/ticklist/lists", json={"items": ["c"], "list": "jobs"})
+        response = self.client.delete("/api/plugins/ticklist/lists/shop")
+        self.assertEqual(response.status_code, 200, response.text)
+        body = response.json()
+        self.assertEqual(body["deleted"]["items"], 2)
+        self.assertEqual([entry["id"] for entry in body["lists"]], ["jobs"])
+        self.assertEqual(self.client.delete("/api/plugins/ticklist/lists/shop").status_code, 404)
+
     def test_remove(self):
         state = self.client.post(
             "/api/plugins/ticklist/lists", json={"items": ["a", "b"]}

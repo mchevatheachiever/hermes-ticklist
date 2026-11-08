@@ -154,6 +154,37 @@ class StoreTest(unittest.TestCase):
     def test_short_names_keep_a_readable_slug(self):
         self.assertEqual(core.slugify("Site work #2"), "site-work-2")
 
+    def test_delete_list_removes_it_and_reports_the_loss(self):
+        self.store.add_items("shop", ["a", "b"])
+        self.store.add_items("jobs", ["c"])
+        result = self.store.delete_list("shop")
+        self.assertEqual(result["name"], "Shop")
+        self.assertEqual(result["items"], 2)
+        self.assertNotIn("shop", self.store.summary()["active"])
+        self.assertEqual([e["id"] for e in self.store.summary()["lists"]], ["jobs"])
+
+    def test_deleting_the_active_list_moves_active_elsewhere(self):
+        self.store.add_items("shop", ["a"])
+        self.store.add_items("jobs", ["b"])
+        self.assertEqual(self.store.summary()["active"], "jobs")
+        self.store.delete_list("jobs")
+        self.assertEqual(self.store.summary()["active"], "shop")
+
+    def test_deleting_the_last_list_empties_active(self):
+        self.store.add_items("only", ["a"])
+        core.ensure_seed(self.store)  # writes the marker: a used store, not a fresh one
+        self.store.delete_list("only")
+        summary = self.store.summary()
+        self.assertEqual(summary["lists"], [])
+        self.assertEqual(summary["active"], "")
+        # and it must not resurrect the seed on the next call
+        self.assertEqual(core.ensure_seed(self.store), "")
+
+    def test_deleting_an_unknown_list_raises(self):
+        self.store.add_items("shop", ["a"])
+        with self.assertRaises(core.TickError):
+            self.store.delete_list("nope")
+
     def test_counts(self):
         items = self.store.add_items(None, ["a", "b", "c"])["list"]["items"]
         self.store.set_done(None, items[0]["id"], True)

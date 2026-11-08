@@ -407,6 +407,20 @@ class TickStore:
             self.write(state)
         return {"removed": removed, "list": current}
 
+    def delete_list(self, name: str | None) -> dict[str, Any]:
+        """Remove a list and everything on it. Returns what was lost."""
+        entry = self.get_list(name)
+        key = entry["id"]
+        with self._locked():
+            state = self.read()
+            removed = state["lists"].pop(key, None)
+            if removed is None:
+                raise TickError(f"no list called {name!r}")
+            if state["active"] == key:
+                state["active"] = next(iter(state["lists"]), "")
+            self.write(state)
+        return {"id": key, "name": removed["name"], "items": len(removed["items"])}
+
     def clear(self, name: str | None, *, done_only: bool = False) -> dict[str, Any]:
         entry = self.get_list(name)
         key = entry["id"]

@@ -99,3 +99,24 @@ def tick_clear(args: dict, **kwargs: Any) -> str:
     except OSError as exc:
         return tool_error(f"could not write the list: {exc}")
     return tool_result(_payload(result["list"], removed=result["removed"]))
+
+
+def tick_delete_list(args: dict, **kwargs: Any) -> str:
+    del kwargs
+    name = args.get("list")
+    if not name:
+        return tool_error("list is required — deleting is not the default")
+    try:
+        result = _store().delete_list(name)
+    except core.TickError as exc:
+        return tool_error(str(exc))
+    except OSError as exc:
+        return tool_error(f"could not write the store: {exc}")
+    return tool_result(
+        {
+            "success": True,
+            "deleted": result["name"],
+            "items_removed": result["items"],
+            "display": f"Deleted list {result['name']} — {result['items']} item(s) gone",
+        }
+    )

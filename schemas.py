@@ -92,3 +92,19 @@ CLEAR = {
         "additionalProperties": False,
     },
 }
+
+DELETE_LIST = {
+    "description": (
+        "Delete an entire checklist and everything on it. This is not `tick_clear`: the "
+        "list itself is gone, not just emptied. Use it when the user says to remove, "
+        "drop or bin a list. Tell the user how many items went with it."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "list": {"type": "string", "description": "Which list to delete."},
+        },
+        "required": ["list"],
+        "additionalProperties": False,
+    },
+}
