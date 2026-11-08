@@ -2,6 +2,19 @@
 
 All notable changes to this plugin. Versions follow the `plugin.yaml` version.
 
+## 1.5.0 — 2026-11-08
+
+### Changed
+- **Undo covers every destructive action, not just deleting a list.** Clearing
+  ticked rows and removing a single row now offer the same 12-second bar.
+  `core.replace_items()` plus `PATCH /lists/{name}/items` write the snapshot back
+  verbatim — same ids, order, timestamps and tick states — instead of re-adding
+  lookalike rows at the end of the list. The bar's label names what it is undoing
+  (`Cleared 4 ticked`, `Removed "paint"`, `Deleted "Two"`).
+
+### Fixed
+- The undo handler shadowed the pane's own `rows` binding; renamed to `snapshot`.
+
 ## 1.4.0 — 2026-11-08
 
 ### Added

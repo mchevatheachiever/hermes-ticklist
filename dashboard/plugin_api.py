@@ -47,6 +47,10 @@ class DonePayload(BaseModel):
     done: bool = True
 
 
+class ItemsPayload(BaseModel):
+    items: Any = Field(default_factory=list)
+
+
 class PinPayload(BaseModel):
     pinned: bool = True
 
@@ -107,6 +111,18 @@ async def get_lists() -> dict[str, Any]:
         return _state()
     except OSError as exc:
         raise HTTPException(status_code=500, detail=f"store unreadable: {exc}") from exc
+
+
+@router.patch("/lists/{name}/items")
+async def replace_items(name: str, payload: ItemsPayload) -> dict[str, Any]:
+    """Restore a list's rows verbatim — undo, from the pane."""
+    try:
+        core.TickStore().replace_items(name, payload.items)
+    except core.TickError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"store unwritable: {exc}") from exc
+    return _state()
 
 
 @router.patch("/lists/{name}")

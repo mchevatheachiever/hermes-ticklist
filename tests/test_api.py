@@ -93,6 +93,37 @@ class ApiTest(unittest.TestCase):
         self.assertEqual([entry["id"] for entry in body["lists"]], ["jobs"])
         self.assertEqual(self.client.delete("/api/plugins/ticklist/lists/shop").status_code, 404)
 
+    def test_restore_rows_verbatim(self):
+        # undo path: clear the list, then write the snapshot back
+        created = self.client.post(
+            "/api/plugins/ticklist/lists", json={"items": ["a", "b", "c"], "list": "shop"}
+        ).json()
+        shop = next(entry for entry in created["lists"] if entry["id"] == "shop")
+        snapshot = shop["items"]
+        ids = [item["id"] for item in snapshot]
+
+        built = self.client.patch(
+            "/api/plugins/ticklist/lists/shop", json={"pinned": True}
+        ).json()  # unrelated write must not disturb rows
+        shop = next(entry for entry in built["lists"] if entry["id"] == "shop")
+        self.assertEqual([item["id"] for item in shop["items"]], ids)
+
+        self.client.post("/api/plugins/ticklist/clear?list=shop", json={"done_only": False})
+        restored = self.client.patch(
+            "/api/plugins/ticklist/lists/shop/items", json={"items": snapshot}
+        )
+        self.assertEqual(restored.status_code, 200, restored.text)
+        shop = next(entry for entry in restored.json()["lists"] if entry["id"] == "shop")
+        self.assertEqual([item["text"] for item in shop["items"]], ["a", "b", "c"])
+        self.assertEqual([item["id"] for item in shop["items"]], ids)
+
+    def test_restore_refuses_a_mapping(self):
+        self.client.post("/api/plugins/ticklist/lists", json={"items": ["a"], "list": "shop"})
+        bad = self.client.patch(
+            "/api/plugins/ticklist/lists/shop/items", json={"items": {"text": "x"}}
+        )
+        self.assertEqual(bad.status_code, 400)
+
     def test_pin_route(self):
         self.client.post("/api/plugins/ticklist/lists", json={"items": ["a"], "list": "work"})
         self.client.post("/api/plugins/ticklist/lists", json={"items": ["b"], "list": "shop"})

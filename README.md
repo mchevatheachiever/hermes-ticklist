@@ -73,7 +73,8 @@ which is what makes the agent see it.
 | **📌** | pins the list to the front of the strip; pinned lists sort ahead of the rest, in the order you made them |
 | **⤓** | export menu: Text, Markdown, CSV, JSON, or copy to the clipboard |
 | **Clear N ticked** | appears once something is ticked — empties the finished rows in one go, and says so in the chat |
-| **× on the active tab** | deletes that whole list — asks first, then posts `Deleted list — <name> (N items)`; an **Undo** bar stays for 12 seconds |
+| **Undo** | a 12-second bar after any destructive action — deleting a list, clearing ticked rows, or removing one row — restoring the exact rows, order, ids and tick states |
+| **× on the active tab** | deletes that whole list — asks first, then posts `Deleted list — <name> (N items)` |
 | **Tab ✕** | closes the pane; `Ctrl+K → "TickList: show checklist"` re-opens it by the same id, restoring the list you were on |
 
 Ticked rows collect at the bottom: unticked first, ticked gathered below, order
@@ -193,6 +194,7 @@ The pane polls cheap and fetches detail on demand:
 | `POST /lists`, `PATCH/DELETE /items/{id}`, `POST /clear` | full state after the write | on action |
 | `DELETE /lists/{name}` | full state plus `{deleted: {name, items}}` | on action |
 | `PATCH /lists/{name}/order` | full state, after reordering to `{ids: [...]}` | on drop |
+| `PATCH /lists/{name}/items` | full state, after writing rows back verbatim (`{items: [...]}`) | undo |
 | `GET /lists/{name}/export?fmt=` | `{filename, mime, content}` | on export |
 | `GET /health` | `{ok, lists}` — never the exception text, which carries the store path | — |
 

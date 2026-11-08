@@ -419,6 +419,50 @@ class TickStore:
             self.write(state)
         return {"removed": removed, "list": current}
 
+    def replace_items(self, name: str | None, rows: Any) -> dict[str, Any]:
+        """Write the row array back verbatim — the restore half of undo.
+
+        Ids, order, tick states and timestamps are all preserved when the caller
+        supplies them, so an undo puts the list back exactly as it was rather
+        than as a set of lookalikes at the end of the list.
+        """
+        if isinstance(rows, Mapping):
+            raise TickError("items must be a list of rows")
+        if not isinstance(rows, Iterable) or isinstance(rows, str):
+            raise TickError("items must be a list of rows")
+        rebuilt: list[dict[str, Any]] = []
+        now = time.time()
+        for row in rows:
+            if isinstance(row, Mapping):
+                text = clean_text(row.get("text"))
+                item = {
+                    "id": str(row.get("id") or new_id())[:16],
+                    "text": text,
+                    "done": bool(row.get("done")),
+                    "created": float(row.get("created") or 0) or now,
+                    "done_at": row.get("done_at"),
+                }
+            else:
+                item = {
+                    "id": new_id(),
+                    "text": clean_text(row),
+                    "done": False,
+                    "created": now,
+                    "done_at": None,
+                }
+            rebuilt.append(item)
+            if len(rebuilt) > MAX_ITEMS:
+                raise TickError(f"a list holds at most {MAX_ITEMS} items")
+        entry = self.get_list(name)
+        key = entry["id"]
+        with self._locked():
+            state = self.read()
+            current = state["lists"][key]
+            current["items"] = rebuilt
+            current["updated_at"] = now
+            self.write(state)
+        return {"list": current}
+
     def set_pinned(self, name: str | None, pinned: bool) -> dict[str, Any]:
         entry = self.get_list(name)
         key = entry["id"]

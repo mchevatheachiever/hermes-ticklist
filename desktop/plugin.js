@@ -126,7 +126,7 @@ function TickPane({ ctx }) {
   const [dragId, setDragId] = useState('')
   const [overId, setOverId] = useState('')
   const [exportOpen, setExportOpen] = useState(false)
-  const [lastDeleted, setLastDeleted] = useState(null)
+  const [lastAction, setLastAction] = useState(null)
 
   // Remembered across sessions; the pane state is scratch, this is the setting.
   useEffect(() => {
@@ -254,27 +254,30 @@ function TickPane({ ctx }) {
 
   const remove = useCallback(
     async (item) => {
+      const snapshot = rows
+      const name = list ? list.name : ''
       try {
         await ctx.rest(listPath(item.id), { method: 'DELETE' })
+        setLastAction({ kind: 'remove', name, rows: snapshot, label: `Removed "${item.text}"` })
         refresh()
         post(`Removed — ${item.text}`)
       } catch (err) {
         setError(`could not remove: ${err && err.message ? err.message : err}`)
       }
     },
-    [ctx, listPath, post, refresh]
+    [ctx, list, listPath, post, refresh, rows]
   )
 
   const deleteList = useCallback(async () => {
     if (!list) return
     const name = list.name
     const count = total
-    const rows = items.map((item) => ({ text: item.text, done: item.done }))
+    const snapshot = rows
     try {
       await ctx.rest(`/lists/${encodeURIComponent(list.id)}`, { method: 'DELETE' })
       setPendingDelete('')
       setSelected('')
-      setLastDeleted({ name, rows })
+      setLastAction({ kind: 'delete', name, rows: snapshot, label: `Deleted "${name}"` })
       try {
         Promise.resolve(ctx.storage.set('selectedList', '')).catch(() => {})
       } catch {
@@ -285,7 +288,7 @@ function TickPane({ ctx }) {
     } catch (err) {
       setError(`could not delete: ${err && err.message ? err.message : err}`)
     }
-  }, [ctx, items, list, post, refresh, total])
+  }, [ctx, list, post, refresh, rows, total])
 
   const togglePin = useCallback(async () => {
     if (!list) return
@@ -305,38 +308,48 @@ function TickPane({ ctx }) {
     if (!list) return
     const count = done
     const name = list.name
+    const snapshot = rows
     try {
       await ctx.rest(`/clear?list=${encodeURIComponent(list.name)}`, {
         method: 'POST',
         body: { done_only: true }
       })
+      setLastAction({ kind: 'clear', name, rows: snapshot, label: `Cleared ${count} ticked` })
       refresh()
       post(`Cleared ${count} ticked from ${name}`)
     } catch (err) {
       setError(`could not clear: ${err && err.message ? err.message : err}`)
     }
-  }, [ctx, done, list, post, refresh])
+  }, [ctx, done, list, post, refresh, rows])
 
-  const undoDelete = useCallback(async () => {
-    if (!lastDeleted) return
-    const { name, rows } = lastDeleted
+  const undoLast = useCallback(async () => {
+    if (!lastAction) return
+    const { kind, name, rows: snapshot } = lastAction
     try {
-      await ctx.rest('/lists', { method: 'POST', body: { list: name, items: rows } })
-      setLastDeleted(null)
+      if (kind === 'delete') {
+        // The list itself is gone, so recreate it, then overwrite the rows with
+        // the snapshot to put the ids, order and timestamps back exactly.
+        await ctx.rest('/lists', { method: 'POST', body: { list: name, items: snapshot } })
+      }
+      await ctx.rest(`/lists/${encodeURIComponent(name)}/items`, {
+        method: 'PATCH',
+        body: { items: snapshot }
+      })
+      setLastAction(null)
       refresh()
       post(`Restored — ${name}`)
     } catch (err) {
       setError(`could not restore: ${err && err.message ? err.message : err}`)
     }
-  }, [ctx, lastDeleted, post, refresh])
+  }, [ctx, lastAction, post, refresh])
 
   // The undo window closes on its own; a stale offer to restore is worse than
   // no offer at all once other work has happened.
   useEffect(() => {
-    if (!lastDeleted) return undefined
-    const timer = setTimeout(() => setLastDeleted(null), 12000)
+    if (!lastAction) return undefined
+    const timer = setTimeout(() => setLastAction(null), 12000)
     return () => clearTimeout(timer)
-  }, [lastDeleted])
+  }, [lastAction])
 
   const moveItem = useCallback(
     async (fromId, toId) => {
@@ -602,19 +615,19 @@ function TickPane({ ctx }) {
           })
         : null,
 
-      lastDeleted
+      lastAction
         ? jsxs('div', {
             className:
               'flex shrink-0 flex-wrap items-center gap-1.5 rounded bg-(--ui-bg-quaternary) px-2 py-1 text-[0.6875rem]',
             children: [
               jsx('span', {
                 className: 'min-w-0 flex-1 truncate',
-                children: `Deleted "${lastDeleted.name}"`
+                children: lastAction.label
               }),
               jsx(Button, {
                 size: 'micro',
                 variant: 'secondary',
-                onClick: undoDelete,
+                onClick: undoLast,
                 children: 'Undo'
               })
             ]
