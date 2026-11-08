@@ -80,7 +80,37 @@ function TickPane({ ctx, onClose }) {
   const [error, setError] = useState('')
   const [selected, setSelected] = useState('')
   const [announce, setAnnounce] = useState(true)
+  const [removeOnTick, setRemoveOnTick] = useState(false)
   const inputRef = useRef(null)
+
+  // Remembered across sessions; the pane state is scratch, this is the setting.
+  useEffect(() => {
+    let cancelled = false
+    try {
+      Promise.resolve(ctx.storage.get('removeOnTick'))
+        .then((value) => {
+          if (!cancelled && value === true) setRemoveOnTick(true)
+        })
+        .catch(() => {})
+    } catch {
+      /* no storage on an old shell — default stays off */
+    }
+    return () => {
+      cancelled = true
+    }
+  }, [ctx])
+
+  const setRemovePref = useCallback(
+    (value) => {
+      setRemoveOnTick(value)
+      try {
+        Promise.resolve(ctx.storage.set('removeOnTick', value)).catch(() => {})
+      } catch {
+        /* non-fatal */
+      }
+    },
+    [ctx]
+  )
 
   const query = useQuery({
     queryKey: ['ticklist', 'lists'],
@@ -120,17 +150,23 @@ function TickPane({ ctx, onClose }) {
     async (item) => {
       haptic('tap')
       try {
-        const next = await ctx.rest(`/items/${encodeURIComponent(item.id)}`, {
+        if (!item.done && removeOnTick) {
+          await ctx.rest(`/items/${encodeURIComponent(item.id)}`, { method: 'DELETE' })
+          query.refetch()
+          post(`Ticked and removed — ${item.text}`)
+          return
+        }
+        await ctx.rest(`/items/${encodeURIComponent(item.id)}`, {
           method: 'PATCH',
           body: { done: !item.done }
         })
         query.refetch()
-        post(`${item.done ? 'Unticked' : 'Ticked'} — ${item.text}${next && next.ok ? '' : ''}`)
+        post(`${item.done ? 'Unticked' : 'Ticked'} — ${item.text}`)
       } catch (err) {
         setError(`could not save: ${err && err.message ? err.message : err}`)
       }
     },
-    [ctx, post, query]
+    [ctx, post, query, removeOnTick]
   )
 
   const remove = useCallback(
@@ -219,6 +255,20 @@ function TickPane({ ctx, onClose }) {
     className: 'flex h-full min-h-0 flex-col gap-1.5 overflow-hidden p-2 text-sm',
     children: [
       header,
+
+      jsxs('label', {
+        className: 'flex cursor-pointer items-center gap-1.5 text-[0.6875rem] text-(--ui-text-tertiary)',
+        style: { userSelect: 'none' },
+        children: [
+          jsx('input', {
+            type: 'checkbox',
+            checked: removeOnTick,
+            onChange: (event) => setRemovePref(event.target.checked),
+            style: { accentColor: 'var(--ui-accent)', width: '12px', height: '12px' }
+          }),
+          jsx('span', { children: 'remove from list on tick' })
+        ]
+      }),
 
       chips
         ? jsx('div', {
