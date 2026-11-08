@@ -109,6 +109,8 @@ model turn.
 - **Local state only**: `<hermes home>/plugin-data/ticklist/lists.json`, written atomically
   under a lock so the pane and the agent can't clobber each other.
 - **Limits**: 240 characters per item, 200 per list name, 2,000 items per list, 50 lists.
+  Every row is drawn, so a list of a couple of thousand will feel heavy — fine in the
+  hundreds.
 - **Ticked text goes to your model provider** when announcing is on — that post is a real
   user turn and lands in the session transcript.
 - **No credentials, no environment variables, no telemetry.**
