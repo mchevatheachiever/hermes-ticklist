@@ -380,9 +380,6 @@ function TickPane({ ctx }) {
   const createList = useCallback(async () => {
     const name = newListName.trim()
     if (!name) return
-    const existed = state.lists.some(
-      (entry) => entry.name.toLowerCase() === name.toLowerCase()
-    )
     try {
       const result = await ctx.rest('/lists', {
         method: 'POST',
@@ -402,14 +399,13 @@ function TickPane({ ctx }) {
       setSelected('')
       clearError()
       refresh()
-      host.notify({
-        kind: 'info',
-        message: existed ? `Switched to "${label}"` : `Created "${label}"`
-      })
+      // "Opened" rather than "Created": create_empty returns an existing list
+      // when the key is there, and a stale poll can't tell the two apart.
+      host.notify({ kind: 'info', message: `Opened "${label}"` })
     } catch (err) {
       setError(`could not create: ${err && err.message ? err.message : err}`)
     }
-  }, [clearError, ctx, newListName, refresh, state.lists])
+  }, [clearError, ctx, newListName, refresh])
 
   const togglePin = useCallback(async () => {
     if (!list) return
@@ -1119,7 +1115,13 @@ function StatusChip({ ctx, onOpen }) {
   const list = lists.find((entry) => entry.id === active) || lists[0] || null
   // The pane can be showing a different tab than the store's "active" one, so
   // the chip names the list it is counting instead of implying the other.
-  const label = list ? `${list.name} ${list.done}/${list.total}` : '—'
+  // Names run to 200 characters and the status bar doesn't truncate for us.
+  const shortName = list
+    ? list.name.length > 20
+      ? `${list.name.slice(0, 19)}…`
+      : list.name
+    : ''
+  const label = list ? `${shortName} ${list.done}/${list.total}` : '—'
 
   return jsx('button', {
     type: 'button',

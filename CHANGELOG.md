@@ -2,6 +2,21 @@
 
 All notable changes to this plugin. Versions follow the `plugin.yaml` version.
 
+## 1.8.2 — 2026-11-08
+
+### Fixed
+- **The upgrade instruction named the wrong service.** The pane is served by the dashboard
+  process (`hermes-serve*.service` on a systemd install), not the messaging gateway — so
+  following the README after an update would not have cleared the 404 it was meant to fix.
+  Wording is now generic, with `systemctl --user list-units 'hermes*'` to find the right one.
+- **The status-bar chip printed up to 200 characters into the status bar.** It shows the
+  list name capped at 20 characters with an ellipsis; the full name stays in `title`.
+
+### Changed
+- Creating a list now reports `Opened "<name>"` instead of `Created`. `create_empty`
+  returns an existing list when the name is already taken, and a stale poll cannot tell
+  the two apart — "Opened" is true either way.
+
 ## 1.8.1 — 2026-11-08
 
 Fixes from the seventh review (B1–B7).
