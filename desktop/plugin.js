@@ -150,6 +150,8 @@ function TickPane({ ctx }) {
   const [dragId, setDragId] = useState('')
   const [overId, setOverId] = useState('')
   const [exportOpen, setExportOpen] = useState(false)
+  const [tabDragId, setTabDragId] = useState('')
+  const [tabOverId, setTabOverId] = useState('')
   const [lastAction, setLastAction] = useState(null)
 
   // Remembered across sessions; the pane state is scratch, this is the setting.
@@ -416,6 +418,25 @@ function TickPane({ ctx }) {
     [ctx, items, list, refresh]
   )
 
+  // Tab drags stay inside a pinned group for the same reason row drags do: the
+  // pinned-first sort would put a pinned tab straight back at the front.
+  const moveTab = useCallback(
+    (fromId, toId) => {
+      if (!fromId || !toId || fromId === toId) return
+      const order = state.lists.map((entry) => entry.id)
+      const from = order.indexOf(fromId)
+      const to = order.indexOf(toId)
+      if (from < 0 || to < 0) return
+      const [moved] = order.splice(from, 1)
+      order.splice(from < to ? to - 1 : to, 0, moved)
+      ctx
+        .rest('/lists/order', { method: 'PATCH', body: { ids: order } })
+        .then(refresh)
+        .catch((err) => setError(`could not reorder tabs: ${err && err.message ? err.message : err}`))
+    },
+    [ctx, refresh, state.lists]
+  )
+
   const nudge = useCallback(
     (item, delta) => {
       const group = items.filter((entry) => entry.done === item.done)
@@ -621,9 +642,42 @@ function TickPane({ ctx }) {
                 'div',
                 {
                   className: 'flex shrink-0 items-center',
+                  // Drop target for a tab drag; the tab itself starts the drag.
+                  onDragOver: (event) => {
+                    event.preventDefault()
+                    event.dataTransfer.dropEffect = 'move'
+                    const source = state.lists.find((item) => item.id === tabDragId)
+                    if (source && source.pinned === entry.pinned && source.id !== entry.id) {
+                      setTabOverId(entry.id)
+                    } else {
+                      setTabOverId('')
+                    }
+                  },
+                  onDrop: (event) => {
+                    event.preventDefault()
+                    const source = state.lists.find((item) => item.id === tabDragId)
+                    setTabOverId('')
+                    setTabDragId('')
+                    if (source && source.pinned === entry.pinned) moveTab(source.id, entry.id)
+                  },
+                  style: {
+                    opacity: tabDragId === entry.id ? 0.4 : 1,
+                    boxShadow:
+                      tabOverId === entry.id ? 'inset 2px 0 0 0 var(--ui-accent)' : 'none'
+                  },
                   children: [
-                    jsx('button', {
-                      type: 'button',
+                    // A span, not a button: Chromium refuses to start a drag from
+                    // a <button>, and tabs have to be draggable.
+                    jsx('span', {
+                      role: 'button',
+                      tabIndex: 0,
+                      draggable: true,
+                      title: entry.pinned
+                        ? `${entry.name} — pinned. Drag to reorder, click to open.`
+                        : `${entry.name} — drag to reorder, click to open.`,
+                      'aria-label': `${entry.name}, ${entry.done} of ${entry.total} done${
+                        entry.pinned ? ', pinned' : ''
+                      }`,
                       onClick: () => {
                         setSelected(entry.id)
                         try {
@@ -631,6 +685,21 @@ function TickPane({ ctx }) {
                         } catch {
                           /* non-fatal: the tab just won't be remembered */
                         }
+                      },
+                      onKeyDown: (event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          setSelected(entry.id)
+                        }
+                      },
+                      onDragStart: (event) => {
+                        event.dataTransfer.effectAllowed = 'move'
+                        event.dataTransfer.setData('text/plain', entry.id)
+                        setTabDragId(entry.id)
+                      },
+                      onDragEnd: () => {
+                        setTabDragId('')
+                        setTabOverId('')
                       },
                       className: cn(
                         'shrink-0 whitespace-nowrap rounded-t px-2 py-1 text-[0.6875rem] transition-colors',
@@ -643,9 +712,11 @@ function TickPane({ ctx }) {
                       style: {
                         borderBottom: `2px solid ${
                           entry.id === (list && list.id) ? 'var(--ui-accent)' : 'transparent'
-                        }`
+                        }`,
+                        cursor: 'grab',
+                        userSelect: 'none'
                       },
-                      children: `${entry.name} (${entry.done}/${entry.total})`
+                      children: `${entry.pinned ? '📌 ' : ''}${entry.name} (${entry.done}/${entry.total})`
                     }),
                     entry.id === (list && list.id)
                       ? jsx('button', {

@@ -241,6 +241,51 @@ class PinTest(unittest.TestCase):
         self.assertEqual(self.names(), ["Shop", "Jobs", "Work"])
 
 
+class ListOrderTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.store = core.TickStore(Path(self.tmp.name))
+        for name in ("alpha", "bravo", "charlie"):
+            self.store.add_items(name, ["x"])
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def names(self):
+        return [entry["name"] for entry in self.store.summary()["lists"]]
+
+    def test_manual_tab_order_persists(self):
+        self.store.set_list_order(["charlie", "alpha", "bravo"])
+        self.assertEqual(self.names(), ["Charlie", "Alpha", "Bravo"])
+        self.assertEqual(
+            [e["name"] for e in core.TickStore(Path(self.tmp.name)).summary()["lists"]],
+            ["Charlie", "Alpha", "Bravo"],
+        )
+
+    def test_pinned_still_sorts_first(self):
+        self.store.set_list_order(["charlie", "alpha", "bravo"])
+        self.store.set_pinned("bravo", True)
+        self.assertEqual(self.names(), ["Bravo", "Charlie", "Alpha"])
+
+    def test_unknown_id_is_refused(self):
+        with self.assertRaises(core.TickError):
+            self.store.set_list_order(["nope"])
+
+    def test_duplicate_id_is_refused(self):
+        with self.assertRaises(core.TickError):
+            self.store.set_list_order(["alpha", "alpha"])
+
+    def test_a_partial_order_keeps_the_rest(self):
+        self.store.set_list_order(["charlie"])
+        self.assertEqual(self.names()[0], "Charlie")
+        self.assertEqual(sorted(self.names()), ["Alpha", "Bravo", "Charlie"])
+
+    def test_new_lists_join_the_end(self):
+        self.store.set_list_order(["charlie", "bravo", "alpha"])
+        self.store.add_items("delta", ["x"])
+        self.assertEqual(self.names()[-1], "Delta")
+
+
 class ReorderTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

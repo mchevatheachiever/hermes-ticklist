@@ -2,6 +2,22 @@
 
 All notable changes to this plugin. Versions follow the `plugin.yaml` version.
 
+## 1.7.0 — 2026-11-08
+
+### Added
+- **Pinned tabs say so.** A pinned tab carries `📌` in front of its name, so the
+  state reads at a glance instead of relying on position alone.
+- **Tabs can be dragged to reorder.** The order is stored (`state["order"]`), not
+  implied by creation time, so it survives restarts; `PATCH /lists/order` sets it.
+  Tab drags stay inside their pinned group, for the same reason row drags do — the
+  pinned-first sort would put a pinned tab straight back at the front.
+- New lists join the end of the tab order; an id that doesn't exist, or a repeated
+  one, is refused rather than silently dropped.
+
+### Fixed
+- The tab is a focusable `span` (role=button), not a `<button>`: Chromium will not
+  start a drag from a button, which is what broke row dragging in 1.6.0.
+
 ## 1.6.0 — 2026-11-08
 
 Fixes from the second review (N1–N10).

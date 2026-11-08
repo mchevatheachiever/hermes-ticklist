@@ -161,6 +161,19 @@ class ApiTest(unittest.TestCase):
         )
         self.assertEqual(bad.status_code, 400)
 
+    def test_tab_order_route(self):
+        for name in ("alpha", "bravo", "charlie"):
+            self.client.post("/api/plugins/ticklist/lists", json={"items": ["x"], "list": name})
+        response = self.client.patch(
+            "/api/plugins/ticklist/lists/order", json={"ids": ["charlie", "alpha", "bravo"]}
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual([e["name"] for e in response.json()["lists"]], ["Charlie", "Alpha", "Bravo"])
+        self.assertEqual(
+            self.client.patch("/api/plugins/ticklist/lists/order", json={"ids": ["nope"]}).status_code,
+            400,
+        )
+
     def test_pin_route(self):
         self.client.post("/api/plugins/ticklist/lists", json={"items": ["a"], "list": "work"})
         self.client.post("/api/plugins/ticklist/lists", json={"items": ["b"], "list": "shop"})

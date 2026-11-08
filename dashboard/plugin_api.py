@@ -54,6 +54,10 @@ class ItemsPayload(BaseModel):
     items: Any = Field(default_factory=list)
 
 
+class ListOrderPayload(BaseModel):
+    ids: list[str] = Field(default_factory=list)
+
+
 class PinPayload(BaseModel):
     pinned: bool = True
 
@@ -130,6 +134,19 @@ async def replace_items(name: str, payload: ItemsPayload) -> dict[str, Any]:
     """Restore a list's rows verbatim — undo, from the pane."""
     try:
         core.TickStore().replace_items(name, payload.items)
+    except core.TickError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"store unwritable: {exc}") from exc
+    return _state()
+
+
+@router.patch("/lists/order")
+async def set_list_order(payload: ListOrderPayload) -> dict[str, Any]:
+    """Reorder the tab strip. Declared before /lists/{name} so it isn't captured
+    by the name route."""
+    try:
+        core.TickStore().set_list_order(payload.ids)
     except core.TickError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except OSError as exc:

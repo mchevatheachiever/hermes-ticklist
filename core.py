@@ -188,17 +188,27 @@ def normalise_items(raw: Any) -> list[dict[str, Any]]:
 
 
 def ordered_entries(state: dict[str, Any]) -> list[dict[str, Any]]:
-    """Pinned lists first, user order preserved inside each group.
+    """Pinned lists first, then the user's own tab order inside each group.
 
-    `sorted` is stable, so this never reshuffles the tabs the user arranged.
+    The order is stored explicitly (`state["order"]`), because a tab strip the
+    user drags must not fall back to creation order. Lists missing from that
+    array — created before it existed, or restored by an undo — sort after the
+    ones that are in it, by creation time, so the result is always total.
     """
+    rank = {key: index for index, key in enumerate(state.get("order") or [])}
     entries = list(state["lists"].values())
-    entries.sort(key=lambda entry: not entry.get("pinned"))
+    entries.sort(
+        key=lambda entry: (
+            not entry.get("pinned"),
+            rank.get(entry["id"], len(rank)),
+            entry.get("created_at") or 0,
+        )
+    )
     return entries
 
 
 def _empty_state() -> dict[str, Any]:
-    return {"version": SCHEMA_VERSION, "active": "", "lists": {}}
+    return {"version": SCHEMA_VERSION, "active": "", "lists": {}, "order": []}
 
 
 SEED_LIST = "First ticks"
@@ -286,6 +296,9 @@ class TickStore:
                     continue
                 if clean is not None:
                     state["lists"][key] = clean
+        raw_order = raw.get("order")
+        if isinstance(raw_order, list):
+            state["order"] = [str(key) for key in raw_order if str(key) in state["lists"]]
         if state["active"] not in state["lists"]:
             state["active"] = next(iter(state["lists"]), "")
         return state
@@ -389,6 +402,7 @@ class TickStore:
                     "updated_at": now,
                 }
                 state["lists"][key] = entry
+                state.setdefault("order", []).append(key)
             state["active"] = key
             self.write(state)
         return entry
@@ -514,6 +528,21 @@ class TickStore:
             current["updated_at"] = now
             self.write(state)
         return {"list": current}
+
+    def set_list_order(self, ids: Iterable[Any]) -> dict[str, Any]:
+        """Set the tab order. Unknown ids and duplicates are refused; a partial
+        list is completed from what is left, so an undo can't strand a tab."""
+        wanted = [str(item) for item in ids]
+        with self._locked():
+            state = self.read()
+            known = set(state["lists"])
+            if any(key not in known for key in wanted):
+                raise TickError("the tab order names a list that does not exist")
+            if len(set(wanted)) != len(wanted):
+                raise TickError("the tab order repeats a list")
+            state["order"] = wanted + [key for key in known if key not in wanted]
+            self.write(state)
+        return {"order": state["order"]}
 
     def set_pinned(self, name: str | None, pinned: bool) -> dict[str, Any]:
         entry = self.get_list(name)

@@ -62,7 +62,7 @@ which is what makes the agent see it.
 
 | Control | Does |
 |---|---|
-| **Tabs** along the top | one per list, with `done/total`; they wrap and scroll vertically past five rows |
+| **Tabs** along the top | one per list, with `done/total`; they wrap and scroll vertically past five rows, and **drag to reorder them** |
 | **Checkbox** | ticks / unticks that row and posts `Ticked — <item>` into the conversation |
 | **▾** | collapses the pane to a single header line showing `done/total` |
 | **💬 / 🔇** | whether ticks are posted to the chat (each post is a model turn) |
@@ -70,7 +70,8 @@ which is what makes the agent see it.
 | **✕** on a row | deletes that item |
 | **Add** box | type one item per line; Enter adds |
 | **⠿ grip** | drag a row **by the grip** to reorder — within its own group, written straight to the store. It's a real button: focus it and use **↑ / ↓** to move the row without a mouse |
-| **📌** | pins the list to the front of the strip; pinned lists sort ahead of the rest, in the order you made them |
+| **📌 on a tab** | a pinned tab shows a pin and sits at the front of the strip |
+| **📌** (header) | pins / unpins the list you're on |
 | **⤓** | export menu: Text, Markdown, CSV, JSON, or copy to the clipboard |
 | **Clear N ticked** | appears once something is ticked — empties the finished rows in one go, and says so in the chat |
 | **Undo** | a 12-second bar after any destructive action — deleting a list, clearing ticked rows, or removing one row — restoring rows, order, ids, tick states **and timestamps** |
@@ -201,6 +202,7 @@ The pane polls cheap and fetches detail on demand:
 | `GET /lists/{name}` | one list with its rows | every 3s, for the list on screen |
 | `POST /lists`, `PATCH/DELETE /items/{id}`, `POST /clear` | full state after the write | on action |
 | `DELETE /lists/{name}` | full state plus `{deleted: {name, items}}` | on action |
+| `PATCH /lists/order` | full state, after reordering the tabs to `{ids: [...]}` | on tab drop |
 | `PATCH /lists/{name}/order` | full state, after reordering to `{ids: [...]}` | on drop |
 | `PATCH /lists/{name}/items` | full state, after writing rows back verbatim (`{items: [...]}`) | undo |
 | `GET /lists/{name}/export?fmt=` | `{filename, mime, content}` | on export |
