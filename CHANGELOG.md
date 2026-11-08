@@ -2,6 +2,23 @@
 
 All notable changes to this plugin. Versions follow the `plugin.yaml` version.
 
+## 1.7.2 — 2026-11-08
+
+### Fixed
+- **The whole plugin API failed to import on a real install (since 1.6.0).**
+  `export.py` gained a dependency on `core.py` for the shared row order, and
+  resolved it with `from .core import …` / `from core import …`. Both work when
+  the file is imported as part of the package or from the repo root — and both
+  fail when `plugin_api.py` loads it **by path**, which is how the plugin host does
+  it. Every route, not just export, would have answered 500. The unit tests missed
+  it because `test_core` had already put the repo root on `sys.path`; a read-only
+  smoke over the real router caught it.
+  Core is now resolved through `sys.modules` (`ticklist_core`), then the `core`
+  name, then a sibling-file load — correct under all three loading paths.
+- A new test runs `export.py` in a clean interpreter with no `PYTHONPATH` and no
+  package context, so this cannot regress silently.
+- `__init__.py` docstring said "five tools"; it registers six.
+
 ## 1.7.1 — 2026-11-08
 
 ### Added

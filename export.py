@@ -10,12 +10,34 @@ from __future__ import annotations
 import csv
 import io
 import json
+from pathlib import Path
 from typing import Any
 
-try:  # inside the plugin package
-    from .core import ordered_items
-except ImportError:  # loaded as a top-level module (tests, plugin_api by path)
-    from core import ordered_items
+def _core_module():
+    """Find the core module however this file was loaded.
+
+    Three loading paths exist: as `ticklist.export` inside the package, as a
+    top-level module in tests, and by file path from `plugin_api.py` — where the
+    core module is already in `sys.modules` under a different name. Guessing with
+    a plain `import core` works in the first two and fails in the third, which is
+    the one that runs in production.
+    """
+    import importlib.util
+    import sys
+
+    for name in ("ticklist_core", "core"):
+        module = sys.modules.get(name)
+        if module is not None and hasattr(module, "ordered_items"):
+            return module
+
+    path = Path(__file__).resolve().parent / "core.py"
+    spec = importlib.util.spec_from_file_location("ticklist_core", path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules.setdefault("ticklist_core", module)
+    spec.loader.exec_module(module)
+    return module
+
+ordered_items = _core_module().ordered_items
 
 
 def _cell(value: Any) -> str:

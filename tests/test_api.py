@@ -46,6 +46,34 @@ class ApiTest(unittest.TestCase):
         self.patch.stop()
         self.tmp.cleanup()
 
+    def test_export_loads_by_path_without_the_repo_on_sys_path(self):
+        # The plugin host imports plugin_api.py by path, so export.py is loaded
+        # with no package context and no repo root on sys.path. A plain
+        # `import core` fallback passes in tests (test_core puts the root on the
+        # path) and fails exactly there — this runs in a clean interpreter.
+        import os
+        import subprocess
+
+        script = (
+            "import importlib.util, sys\n"
+            f"spec = importlib.util.spec_from_file_location('x', {str(ROOT / 'export.py')!r})\n"
+            "mod = importlib.util.module_from_spec(spec)\n"
+            "sys.modules['x'] = mod\n"
+            "spec.loader.exec_module(mod)\n"
+            "entry = {'name': 'L', 'items': [{'id': 'a', 'text': 't', 'done': False}]}\n"
+            "print(mod.build(entry, 'csv')[0].splitlines()[0])\n"
+        )
+        env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+        result = subprocess.run(
+            [__import__("sys").executable, "-c", script],
+            cwd=str(self.tmp.name),
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("done,text", result.stdout)
+
     def test_health(self):
         self.assertEqual(self.client.get("/api/plugins/ticklist/health").json()["ok"], True)
 

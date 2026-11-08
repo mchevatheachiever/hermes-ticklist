@@ -1,6 +1,6 @@
 """ticklist — a checklist the agent can see you tick.
 
-Agent half: five tools. Desktop half: `desktop/plugin.js`, a pane of checkboxes
+Agent half: six tools. Desktop half: `desktop/plugin.js`, a pane of checkboxes
 that posts each tick/untick into the conversation as it happens.
 
 The pane opens through `host.openWorkspace`, docks beside the terminal pane, and the
