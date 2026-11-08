@@ -1,0 +1,15 @@
+name: ticklist
+version: 1.0.0
+description: "A checklist you can actually tick: checkboxes in the Desktop pane, and every tick is announced to the agent as it happens."
+author: mchevatheachiever
+license: MIT
+homepage: https://github.com/mchevatheachiever/hermes-ticklist
+requires_hermes: ">=0.21.5"
+tags: [desktop, tasks, checklist, todo, ui]
+provides_tools:
+  - tick_add
+  - tick_set
+  - tick_list
+  - tick_remove
+  - tick_clear
+python_dependencies: []
