@@ -346,6 +346,32 @@ function TickPane({ ctx, onClose }) {
   })
 }
 
+
+function StatusChip({ ctx, isOpen, onToggle }) {
+  const query = useQuery({
+    queryKey: ['ticklist', 'chip'],
+    queryFn: () => ctx.rest('/lists'),
+    refetchInterval: 5000,
+    retry: 1
+  })
+  const lists = (query.data && query.data.lists) || []
+  const active = (query.data && query.data.active) || ''
+  const list = lists.find((entry) => entry.id === active) || lists[0] || null
+  const label = list ? `${list.done}/${list.total}` : '—'
+
+  return jsx('button', {
+    type: 'button',
+    onClick: () => {
+      haptic('tap')
+      onToggle()
+    },
+    title: isOpen ? 'TickList — click to hide the pane' : 'TickList — click to open the pane',
+    className:
+      'inline-flex h-full items-center gap-1 px-1.5 text-[0.6875rem] transition-colors text-(--ui-text-tertiary) hover:bg-(--chrome-action-hover) hover:text-foreground',
+    children: `☑ ${label}`
+  })
+}
+
 export default {
   id: ID,
   name: 'TickList',
@@ -371,6 +397,19 @@ export default {
     }
 
     showPane()
+
+    // The chip is the UI door: always on screen, one click either way.
+    ctx.register({
+      id: 'chip',
+      area: 'statusBar.right',
+      order: 128,
+      render: () =>
+        jsx(StatusChip, {
+          ctx,
+          isOpen: Boolean(disposePane),
+          onToggle: () => (disposePane ? hidePane() : showPane())
+        })
+    })
 
     ctx.register({
       id: 'toggle',
