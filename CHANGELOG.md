@@ -2,6 +2,19 @@
 
 All notable changes to this plugin. Versions follow the `plugin.yaml` version.
 
+## 1.7.5 — 2026-11-08
+
+README rewritten for people installing the plugin, not for reviewers.
+
+- Removed the review-process sections (Known limits, Development) — the CI workflow is
+  where that belongs, and a reader installing a checklist does not need the gate list.
+- Removed the design-provenance table and the note about a feature that was never built.
+  The README describes what the plugin does.
+- Examples no longer borrow from one trade's vocabulary.
+- The command palette shortcut is now stated for both platforms (Ctrl+K, ⌘K on macOS)
+  rather than assuming one.
+- Prose cut back; the API table kept, since those routes exist.
+
 ## 1.7.4 — 2026-11-08
 
 Fixes from the fourth review (F1–F3) plus two nits.
@@ -10,7 +23,9 @@ Fixes from the fourth review (F1–F3) plus two nits.
 - **F1 — the README still listed `PATCH /lists/order` as the tab-reorder route.** That
   path is now the *pin* route for a list named `order`, so a client following the
   docs would get a 200, pin a list, and not reorder anything. Row deleted.
-- **F2 — test counts** corrected to 69 core + 25 API (94).
+- **F2 — test counts** corrected, then removed from the README entirely: the
+  command is the information, and a hand-maintained number was wrong three releases
+  running.
 - **F3 — `art.py` resolved a second `core` module under the package load path.**
   `__init__.py` imports `.art` before `.core`, so art's probe ran before `ticklist.core`
   existed in `sys.modules` and fell through to a file load — two `TickError` classes in
