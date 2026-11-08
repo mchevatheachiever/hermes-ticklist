@@ -2,6 +2,24 @@
 
 All notable changes to this plugin. Versions follow the `plugin.yaml` version.
 
+## 1.8.4 — 2026-11-08
+
+### Fixed
+- **The 1.8.2 note below claimed a README fix that never landed.** The upgrade instruction
+  still told users to restart `hermes-gateway.service`; on a desktop install the pane is
+  served by the dashboard process (`hermes-serve-<profile>.service`), so following it left
+  the 404 in place. The README now names no unit — `systemctl --user list-units 'hermes*'`
+  lists them — and the changelog entry is true.
+- **The chip swallowed a failed toggle.** `onToggle()`'s result is checked again, so a
+  desktop without `host.openWorkspace` says so instead of doing nothing.
+- **Closing the pane didn't survive a reload.** `paneClosed` is stored in `ctx.storage` and
+  honoured at registration, so a pane the user closed stays closed — and the chip's state
+  stops contradicting reality.
+- **The stored disposer is wrapped**, so a build whose `openWorkspace` returns a non-function
+  can no longer leave a boolean in `pane.dispose` (which would open but never close).
+- **`moveItem` refuses a partial order at the call site** — the route answers 400 for one,
+  and a stale slice should never be sent.
+
 ## 1.8.3 — 2026-11-08
 
 ### Changed

@@ -510,6 +510,9 @@ function TickPane({ ctx }) {
     async (fromId, toId, after = false) => {
       if (!fromId || !toId || fromId === toId || !list) return
       const order = applyMove(items.map((item) => item.id), fromId, toId, after)
+      // A partial order is a 400 from the route; refuse it here so a stale slice
+      // can never be sent.
+      if (order.length !== items.length) return
       try {
         await ctx.rest(`/lists/${encodeURIComponent(list.id)}/order`, {
           method: 'PATCH',
@@ -1131,7 +1134,12 @@ function StatusChip({ onToggle }) {
     type: 'button',
     onClick: () => {
       haptic('tap')
-      onToggle()
+      if (onToggle() === false) {
+        host.notify({
+          kind: 'error',
+          message: 'This desktop cannot open the pane — use the command palette'
+        })
+      }
     },
     title: isOpen ? 'TickList — close the pane' : 'TickList — open the pane',
     'aria-label': isOpen ? 'Close the TickList pane' : 'Open the TickList pane',
@@ -1169,10 +1177,27 @@ export default {
           // A floor on the tile's width: without it the right-zone sash happily
           // collapses the pane to nothing and the list is unreadable.
           minWidth: '20rem',
-          onClose: () => setPaneOpen(null),
+          // Closing by the tab's × is the user's choice too — remember it.
+          onClose: () => {
+            setPaneOpen(null)
+            remember(true)
+          },
           render: () => jsx(TickPane, { ctx })
         })
-        setPaneOpen(typeof dispose === 'function' ? dispose : true)
+        // Wrap it so what is stored is always callable: a build whose
+        // openWorkspace returns something else must not leave a boolean here,
+        // or the chip can open the pane and never close it.
+        setPaneOpen(
+          typeof dispose === 'function'
+            ? () => {
+                try {
+                  dispose()
+                } catch {
+                  /* already torn down */
+                }
+              }
+            : () => setPaneOpen(null)
+        )
         return true
       } catch {
         return false
@@ -1180,20 +1205,39 @@ export default {
     }
 
     // The chip toggles, the way the terminal's status-bar button does.
-    const toggle = () => {
-      if (typeof pane.dispose === 'function') {
-        try {
-          pane.dispose()
-        } catch {
-          setPaneOpen(null)
-        }
-        setPaneOpen(null)
-        return true
+    const remember = (closed) => {
+      try {
+        Promise.resolve(ctx.storage.set('paneClosed', closed)).catch(() => {})
+      } catch {
+        /* no storage: closing just won't stick */
       }
-      return open()
     }
 
-    if (!open()) {
+    const toggle = () => {
+      if (typeof pane.dispose === 'function') {
+        pane.dispose()
+        setPaneOpen(null)
+        remember(true)
+        return true
+      }
+      const opened = open()
+      if (opened) remember(false)
+      return opened
+    }
+
+    // A pane the user closed must stay closed across a reload — otherwise the
+    // chip's "closed" state is a lie the moment the app restarts.
+    const openIfWanted = async () => {
+      let closed = false
+      try {
+        closed = (await ctx.storage.get('paneClosed')) === true
+      } catch {
+        /* no storage: behave as before */
+      }
+      if (!closed) open()
+    }
+
+    if (typeof host.openWorkspace !== 'function') {
       // Older desktop: fall back to a plain pane; the zone tab strip still has it.
       ctx.register({
         id: 'pane',
@@ -1202,6 +1246,8 @@ export default {
         data: { placement: 'right', width: '360px' },
         render: () => jsx(TickPane, { ctx })
       })
+    } else {
+      void openIfWanted()
     }
 
     // The chip is the door that survives closing the tab: the pane is a

@@ -28,10 +28,12 @@ the agent half immediately, but the pane's `plugin.js` is copied into
 `<hermes home>/desktop-plugins/ticklist/` by the app at startup — with the app already
 running there is nothing to show until then.
 
-If you are **updating** an existing install, restart the gateway as well:
-`systemctl --user restart hermes-gateway.service`. The app hot-reloads the pane, but
-route and tool changes only land when the gateway restarts — otherwise the pane calls
-endpoints that do not exist yet and shows a 404.
+If you are **updating** an existing install, restart the Hermes process serving your
+dashboard — that is what serves `/api/plugins/ticklist/`, and it is rarely the messaging
+gateway. On a systemd install `systemctl --user list-units 'hermes*'` names them; the
+desktop one is usually `hermes-serve-<profile>.service`. Restarting only the desktop app
+is not enough: routes and tool schemas come from that process, so the pane keeps calling
+endpoints it cannot reach and shows a 404.
 
 The pane opens beside the terminal pane as a sibling tab. If you close it, open the command
 palette (**Ctrl+K**, or **⌘K** on macOS) and run **TickList: show checklist**.
