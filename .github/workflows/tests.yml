@@ -33,6 +33,9 @@ jobs:
       - name: Desktop half parses
         run: node --check desktop/plugin.js
 
+      - name: Reorder arithmetic (extracted from plugin.js)
+        run: node --test tests/reorder.test.mjs
+
       - name: Mount-time guard (dead setters, unimported hooks, quoted areas)
         run: python scripts/check_setters.py desktop/plugin.js
 

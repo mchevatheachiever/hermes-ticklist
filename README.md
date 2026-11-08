@@ -28,6 +28,11 @@ the agent half immediately, but the pane's `plugin.js` is copied into
 `<hermes home>/desktop-plugins/ticklist/` by the app at startup — with the app already
 running there is nothing to show until then.
 
+If you are **updating** an existing install, restart the gateway as well:
+`systemctl --user restart hermes-gateway.service`. The app hot-reloads the pane, but
+route and tool changes only land when the gateway restarts — otherwise the pane calls
+endpoints that do not exist yet and shows a 404.
+
 The pane opens beside the terminal pane as a sibling tab. If you close it, open the command
 palette (**Ctrl+K**, or **⌘K** on macOS) and run **TickList: show checklist**.
 
@@ -52,7 +57,7 @@ makes the agent see it.
 | Control | What it does |
 |---|---|
 | **Tabs** | one per list, showing `done/total`; they wrap, and scroll past five rows |
-| **＋** | create a new list — type a name, Enter. It opens empty and becomes active |
+| **＋** | create a new list — type a name, Enter. It opens empty and becomes active (if the name already exists it switches to that list instead) |
 | **☑ done/total** (status bar) | opens the pane; stays visible when the tab is closed |
 | **Drag a tab** | reorders the strip; drop on the left or right half of a tab to land before or after it. Pinned tabs reorder among themselves. Focused, **←** / **→** also moves it |
 | **📌 on a tab** | a pinned list sits at the front of the strip |

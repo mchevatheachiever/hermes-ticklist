@@ -2,6 +2,36 @@
 
 All notable changes to this plugin. Versions follow the `plugin.yaml` version.
 
+## 1.8.1 — 2026-11-08
+
+Fixes from the seventh review (B1–B7).
+
+### Fixed
+- **B1 — `→` on a focused tab deleted the neighbouring tab.** `splice(indexOf(neighbour),
+  delta < 0 ? 0 : 1, moved)` passes the second argument as *deleteCount*, not an offset,
+  so a rightward nudge removed the neighbour from the payload; the server then appended
+  the missing list at the far end. `←` was fine (`deleteCount 0`), and with two tabs the
+  bug was invisible — which is why hand-testing passed.
+- **B2 — `moveItem`'s catch cleared the error it had just set**, both in one React batch,
+  so a failed row reorder showed nothing at all.
+- **B3** — `deleteList`, `doExport` and `copyList` now clear a stale error too; they were
+  the three success paths the earlier sweep missed.
+- **B4** — `＋` on a collapsed pane flipped `aria-expanded` and showed nothing; it now
+  expands the pane first.
+- **B5** — creating a list whose name already existed toasted `Created "X"` while merely
+  switching to it, and guessed the capitalisation instead of reading what the store kept.
+  It now reports `Switched to` / `Created` from the API response.
+- **B6** — the chip polls every 15s instead of 5s (it never sleeps, unlike the pane), names
+  the list it is counting so it can't be confused with the tab on screen, and says so
+  instead of dying silently on a desktop without `openWorkspace`.
+
+### Changed
+- **The reorder arithmetic is now two pure functions** (`applyMove`, `applySwap`) instead
+  of four hand-rolled `splice` calls in four callbacks — the shape that produced B1.
+  `tests/reorder.test.mjs` extracts them from `plugin.js` (a plugin cannot import its own
+  siblings) and puts them under `node --test`, which now runs in CI. It asserts the case
+  that shipped broken: no move may change the payload's length.
+
 ## 1.8.0 — 2026-11-08
 
 ### Added

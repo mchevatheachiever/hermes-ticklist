@@ -16,6 +16,36 @@ import { useCallback, useEffect, useState } from 'react'
 
 const ID = 'ticklist'
 
+// ---- pure reorder arithmetic -------------------------------------------- #
+// Kept as top-level functions so tests/reorder.test.mjs can extract and run
+// them in Node: a plugin cannot import its own siblings (only @hermes/plugin-sdk,
+// react and react/jsx-runtime resolve), so a separate module is not an option.
+
+/** Drag semantics: move `fromId` to before/after `toId`. */
+function applyMove(order, fromId, toId, after) {
+  const next = [...order]
+  if (fromId === toId) return next
+  const from = next.indexOf(fromId)
+  if (from < 0 || next.indexOf(toId) < 0) return next
+  const [moved] = next.splice(from, 1)
+  // Re-resolve the target: every index above the source has shifted.
+  const at = next.indexOf(toId)
+  next.splice(after ? at + 1 : at, 0, moved)
+  return next
+}
+
+/** Keyboard semantics: swap two neighbours. */
+function applySwap(order, id, neighbourId) {
+  const next = [...order]
+  const a = next.indexOf(id)
+  const b = next.indexOf(neighbourId)
+  if (a < 0 || b < 0) return next
+  next[a] = neighbourId
+  next[b] = id
+  return next
+}
+
+
 function Row({
   item,
   onToggle,
@@ -333,6 +363,7 @@ function TickPane({ ctx }) {
       await ctx.rest(`/lists/${encodeURIComponent(list.id)}`, { method: 'DELETE' })
       setPendingDelete('')
       setSelected('')
+      clearError()
       setLastAction({ kind: 'delete', name, id: list.id, rows: snapshot, label: `Deleted "${name}"` })
       try {
         Promise.resolve(ctx.storage.set('selectedList', '')).catch(() => {})
@@ -349,22 +380,36 @@ function TickPane({ ctx }) {
   const createList = useCallback(async () => {
     const name = newListName.trim()
     if (!name) return
+    const existed = state.lists.some(
+      (entry) => entry.name.toLowerCase() === name.toLowerCase()
+    )
     try {
-      await ctx.rest('/lists', {
+      const result = await ctx.rest('/lists', {
         method: 'POST',
         body: { list: name, create_empty: true }
       })
-      const created = name.charAt(0).toUpperCase() + name.slice(1)
+      // `create_empty` goes through ensure_list, which returns the existing list
+      // when the key is already there — so report what the store actually holds,
+      // and say "switched" when nothing was created.
+      const stored =
+        (result &&
+          result.lists &&
+          result.lists.find((entry) => entry.name.toLowerCase() === name.toLowerCase())) ||
+        null
+      const label = stored ? stored.name : name
       setNewListOpen(false)
       setNewListName('')
       setSelected('')
       clearError()
       refresh()
-      host.notify({ kind: 'info', message: `Created "${created}"` })
+      host.notify({
+        kind: 'info',
+        message: existed ? `Switched to "${label}"` : `Created "${label}"`
+      })
     } catch (err) {
       setError(`could not create: ${err && err.message ? err.message : err}`)
     }
-  }, [ctx, newListName, refresh])
+  }, [clearError, ctx, newListName, refresh, state.lists])
 
   const togglePin = useCallback(async () => {
     if (!list) return
@@ -448,14 +493,7 @@ function TickPane({ ctx }) {
   const moveItem = useCallback(
     async (fromId, toId, after = false) => {
       if (!fromId || !toId || fromId === toId || !list) return
-      const order = items.map((item) => item.id)
-      if (!order.includes(fromId) || !order.includes(toId)) return
-      // Take the source out first, then look the target up again: every index
-      // above the source has shifted, and `after` has to mean "after the target
-      // as it now sits", not "after the index it used to have".
-      const [moved] = order.splice(order.indexOf(fromId), 1)
-      const at = order.indexOf(toId)
-      order.splice(after ? at + 1 : at, 0, moved)
+      const order = applyMove(items.map((item) => item.id), fromId, toId, after)
       try {
         await ctx.rest(`/lists/${encodeURIComponent(list.id)}/order`, {
           method: 'PATCH',
@@ -465,7 +503,6 @@ function TickPane({ ctx }) {
         refresh()
       } catch (err) {
         setError(`could not reorder: ${err && err.message ? err.message : err}`)
-        clearError()
         refresh()
       }
     },
@@ -477,11 +514,7 @@ function TickPane({ ctx }) {
   const moveTab = useCallback(
     (fromId, toId, after = false) => {
       if (!fromId || !toId || fromId === toId) return
-      const order = state.lists.map((entry) => entry.id)
-      if (!order.includes(fromId) || !order.includes(toId)) return
-      const [moved] = order.splice(order.indexOf(fromId), 1)
-      const at = order.indexOf(toId)
-      order.splice(after ? at + 1 : at, 0, moved)
+      const order = applyMove(state.lists.map((entry) => entry.id), fromId, toId, after)
       ctx
         .rest('/order', { method: 'PATCH', body: { ids: order } })
         .then(() => {
@@ -499,9 +532,7 @@ function TickPane({ ctx }) {
       const at = group.findIndex((item) => item.id === entry.id)
       const neighbour = group[at + delta]
       if (!neighbour) return
-      const order = state.lists.map((item) => item.id)
-      const [moved] = order.splice(order.indexOf(entry.id), 1)
-      order.splice(order.indexOf(neighbour.id), delta < 0 ? 0 : 1, moved)
+      const order = applySwap(state.lists.map((item) => item.id), entry.id, neighbour.id)
       haptic('tap')
       ctx
         .rest('/order', { method: 'PATCH', body: { ids: order } })
@@ -520,11 +551,7 @@ function TickPane({ ctx }) {
       const at = group.findIndex((entry) => entry.id === item.id)
       const neighbour = group[at + delta]
       if (!neighbour) return
-      const order = items.map((entry) => entry.id)
-      const from = order.indexOf(item.id)
-      const to = order.indexOf(neighbour.id)
-      const [moved] = order.splice(from, 1)
-      order.splice(to, 0, moved)
+      const order = applySwap(items.map((entry) => entry.id), item.id, neighbour.id)
       haptic('tap')
       if (!list) return
       ctx
@@ -552,12 +579,13 @@ function TickPane({ ctx }) {
         anchor.click()
         anchor.remove()
         setTimeout(() => URL.revokeObjectURL(url), 1000)
+        clearError()
         host.notify({ kind: 'info', message: `Exported ${result.filename}` })
       } catch (err) {
         setError(`could not export: ${err && err.message ? err.message : err}`)
       }
     },
-    [ctx, list]
+    [clearError, ctx, list]
   )
 
   const copyList = useCallback(async () => {
@@ -570,6 +598,7 @@ function TickPane({ ctx }) {
       } else {
         await navigator.clipboard.writeText(result.content)
       }
+      clearError()
       host.notify({ kind: 'info', message: 'List copied to the clipboard' })
     } catch (err) {
       setError(`could not copy: ${err && err.message ? err.message : err}`)
@@ -623,6 +652,8 @@ function TickPane({ ctx }) {
         size: 'xs',
         variant: 'ghost',
         onClick: () => {
+          // The naming row only exists in the expanded render, so open it.
+          setCollapsed(false)
           setNewListOpen((value) => !value)
           setNewListName('')
         },
@@ -1079,19 +1110,24 @@ function StatusChip({ ctx, onOpen }) {
   const query = useQuery({
     queryKey: ['ticklist', 'chip'],
     queryFn: () => ctx.rest('/lists'),
-    refetchInterval: 5000,
+    // The pane polls at 3s while it is open; this one never sleeps, so 15s.
+    refetchInterval: 15000,
     retry: 1
   })
   const lists = (query.data && query.data.lists) || []
   const active = (query.data && query.data.active) || ''
   const list = lists.find((entry) => entry.id === active) || lists[0] || null
-  const label = list ? `${list.done}/${list.total}` : '—'
+  // The pane can be showing a different tab than the store's "active" one, so
+  // the chip names the list it is counting instead of implying the other.
+  const label = list ? `${list.name} ${list.done}/${list.total}` : '—'
 
   return jsx('button', {
     type: 'button',
     onClick: () => {
       haptic('tap')
-      onOpen()
+      if (!onOpen()) {
+        host.notify({ kind: 'error', message: 'This desktop cannot open the pane — use the palette' })
+      }
     },
     title: 'TickList — open the checklist',
     'aria-label': 'Open the TickList pane',
