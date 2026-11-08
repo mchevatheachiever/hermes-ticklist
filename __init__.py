@@ -85,4 +85,9 @@ def register(ctx: Any) -> None:
         args_hint="[list name]",
     )
 
+    try:
+        core.ensure_seed()
+    except (core.TickError, OSError) as exc:  # pragma: no cover - never block loading
+        logger.debug("ticklist: seed skipped: %s", exc)
+
     logger.debug("ticklist: registered 5 tools")

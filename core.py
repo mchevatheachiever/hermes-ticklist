@@ -164,6 +164,41 @@ def _empty_state() -> dict[str, Any]:
     return {"version": SCHEMA_VERSION, "active": "", "lists": {}}
 
 
+SEED_LIST = "First ticks"
+SEED_ITEMS: list[dict[str, Any]] = [
+    {"text": "Tick this one — the agent hears about it in the chat", "done": False},
+    {"text": "Untick it again: nothing here is permanent", "done": False},
+    {"text": "Add something only you would put on a list", "done": False},
+    {"text": "Click another tab — every list is one click away", "done": False},
+    {"text": "Delete this list when you're bored; the plugin won't sulk", "done": False},
+    {"done": True, "text": "Ticked rows collect down the bottom, out of the way"},
+    {"done": True, "text": "And a tick costs one model turn — see the 💬 toggle"},
+]
+
+
+def ensure_seed(store: "TickStore | None" = None) -> str:
+    """Drop the example list in once, on a store that has never been touched.
+
+    A marker file rather than an emptiness check: an empty store means "the user
+    deleted everything", which is a decision to respect, not a fresh install.
+    Returns the list name when it seeded, "" otherwise.
+    """
+    store = store if store is not None else TickStore()
+    marker = store.root / ".seeded"
+    if marker.exists():
+        return ""
+    store.root.mkdir(parents=True, exist_ok=True)
+    seeded = ""
+    if not store.summary()["lists"]:
+        store.add_items(SEED_LIST, SEED_ITEMS)
+        seeded = SEED_LIST
+    try:
+        marker.write_text(str(int(time.time())), encoding="utf-8")
+    except OSError:  # pragma: no cover - read-only volume
+        pass
+    return seeded
+
+
 class TickStore:
     """JSON-backed, lock-guarded checklist store."""
 

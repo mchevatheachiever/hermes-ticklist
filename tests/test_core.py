@@ -161,6 +161,40 @@ class StoreTest(unittest.TestCase):
         self.assertEqual(sum(1 for i in entry["items"] if i["done"]), 1)
 
 
+class SeedTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.store = core.TickStore(Path(self.tmp.name))
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_empty_store_gets_the_example_list(self):
+        self.assertEqual(core.ensure_seed(self.store), core.SEED_LIST)
+        entry = self.store.get_list(core.SEED_LIST)
+        self.assertTrue(entry["items"])
+        self.assertTrue(any(item["done"] for item in entry["items"]))
+
+    def test_seeds_only_once(self):
+        core.ensure_seed(self.store)
+        self.assertEqual(core.ensure_seed(self.store), "")
+        self.assertEqual(len(self.store.summary()["lists"]), 1)
+
+    def test_a_used_store_is_not_seeded(self):
+        self.store.add_items("Real work", ["brackets"])
+        self.assertEqual(core.ensure_seed(self.store), "")
+        self.assertEqual([e["name"] for e in self.store.summary()["lists"]], ["Real work"])
+
+    def test_deleting_every_list_does_not_resurrect_the_demo(self):
+        core.ensure_seed(self.store)
+        state = self.store.read()
+        state["lists"] = {}
+        state["active"] = ""
+        self.store.write(state)
+        self.assertEqual(core.ensure_seed(self.store), "")
+        self.assertEqual(self.store.summary()["lists"], [])
+
+
 class NameTest(unittest.TestCase):
     def test_titles_capitalise(self):
         self.assertEqual(core.clean_name("vehicles"), "Vehicles")

@@ -36,6 +36,11 @@ the agent half immediately, but the pane's `plugin.js` is copied into
 `<hermes home>/desktop-plugins/ticklist/` by the Electron reconcile pass at app start
 — so with the app already running there is no pane to show until then.
 
+On first run the plugin drops one example list, **First ticks** — seven rows that
+each demonstrate something (tick one and watch the chat, untick it, switch tabs,
+delete the list). It is seeded once behind a marker file, so deleting it is final:
+an empty store means you meant it, not a fresh install.
+
 The **ticks** pane then opens in the terminal pane's zone as a sibling tab and stays
 there — switch to it like any other tab. If you close it, `Ctrl+K → "TickList: show
 checklist"` brings it back, on the list you were last reading.

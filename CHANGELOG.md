@@ -2,6 +2,15 @@
 
 All notable changes to this plugin. Versions follow the `plugin.yaml` version.
 
+## 1.1.3 — 2026-11-08
+
+### Added
+- **Example list on first run** — "First ticks": seven rows that each show a feature
+  (tick → the agent hears it, untick → nothing is permanent, tabs, delete the list),
+  two of them pre-ticked so the strike-through and the sort order are visible.
+  Seeded behind a `.seeded` marker, so a used store is never touched and deleting
+  the example is permanent.
+
 ## 1.1.2 — 2026-11-08
 
 ### Fixed
