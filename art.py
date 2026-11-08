@@ -13,7 +13,7 @@ from typing import Any, Sequence
 def _core_module():
     """Find the core module however this file was loaded.
 
-    Three loading paths exist: as `ticklist.export` inside the package, as a
+    Three loading paths exist: as `ticklist.art` inside the package, as a
     top-level module in tests, and by file path from `plugin_api.py` — where the
     core module is already in `sys.modules` under a different name. Guessing with
     a plain `import core` works in the first two and fails in the third, which is
@@ -22,7 +22,7 @@ def _core_module():
     import importlib.util
     import sys
 
-    for name in ("ticklist_core", "core"):
+    for name in ("ticklist_core", "ticklist.core", "core"):
         module = sys.modules.get(name)
         if module is not None and hasattr(module, "ordered_items"):
             return module

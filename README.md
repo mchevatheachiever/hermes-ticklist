@@ -69,7 +69,7 @@ which is what makes the agent see it.
 | **☐ remove from list on tick** | off by default, remembered across sessions; with it on a tick deletes the row instead of striking it through |
 | **✕** on a row | deletes that item |
 | **Add** box | type one item per line; Enter adds |
-| **⠿ grip** | drag a row **by the grip** to reorder — within its own group, written straight to the store. It's a real button: focus it and use **↑ / ↓** to move the row without a mouse |
+| **⠿ grip** | drag a row **by the grip** to reorder — within its own group, written straight to the store. It's a focusable handle (`role="button"`, `tabIndex=0` — not a literal `<button>`, because Chromium refuses to start a drag from one): focus it and use **↑ / ↓** to move the row without a mouse |
 | **📌 on a tab** | a pinned tab shows a pin and sits at the front of the strip |
 | **📌** (header) | pins / unpins the list you're on |
 | **⤓** | export menu: Text, Markdown, CSV, JSON, or copy to the clipboard |
@@ -105,7 +105,7 @@ worse answer than a pin. Add it if the tab strip ever gets past ~40 lists.
 | Text | `[ ] item` / `[x] item`, with a done count | pasting into a message or a terminal |
 | Markdown | `- [ ] item` under a heading | Obsidian, GitHub issues, Notion — anything that reads task lists |
 | CSV | `done,text,created,done_at,id` | a spreadsheet, or a Todoist-style import |
-| JSON | the stored list verbatim | only lossless shape: ids and timestamps survive, so it can be re-imported |
+| JSON | the stored list verbatim | only lossless shape — ids and timestamps survive, so a list can be restored by hand |
 | Copy | the text shape, to the clipboard | a quick paste without a file on disk |
 
 CSV cells that would be evaluated by a spreadsheet (`=`, `+`, `-`, `@`) are
@@ -121,7 +121,7 @@ written outside your Downloads folder.
 |---|---|
 | `tick_add` | Add items; keeps existing, skips duplicates |
 | `tick_set` | Tick or untick by id or text (exact, then unique substring) |
-| `tick_list` | Read a list with done/total, plus an inventory of every list (name, pinned, done/total, which is active) |
+| `tick_list` | Read a list with done/total, plus an inventory of every list (name, pinned, done/total, which is active). The other five tools return only the list they acted on |
 | `tick_remove` | Delete an item |
 | `tick_clear` | Empty a list, or `done_only: true` |
 | `tick_delete_list` | Delete an entire list — not the same as emptying it |
@@ -146,8 +146,8 @@ shop — 1/3 done
   `<hermes home>/plugin-data/ticklist/lists.json`, written atomically (temp file →
   `fsync` → `os.replace`) under an advisory lock, so a click and a `tick_set` are
   the same operation and cannot truncate each other.
-- **Bounded input**: 240 chars per item, 2,000 items per list, 50 lists, control
-  characters stripped.
+- **Bounded input**: 240 chars per item, 200 chars per list name, 2,000 items per
+  list, 50 lists, control characters stripped.
 - **Ambiguity is refused, not guessed.** A substring matching two items raises and
   lists the candidates; pass the id instead.
 - **Duplicate texts collapse** onto the first occurrence, case-insensitively — two
@@ -181,16 +181,19 @@ host.openWorkspace('ticklist', {
 - There is deliberately **no status-bar chip**: the pane is a permanent tab, so a
   chip would be a second door for something already one click away.
 
-Names hold up to 200 characters and are never truncated in the store — truncation is
-the renderer's job, because the store key is derived from the name and a cut name
-stops resolving. `hermes plugins update` is as inert as `install` until the app
-restarts, for the same reason.
+Names hold up to 200 characters and are never truncated in the store, because the
+store key is derived from the name and a cut name stops resolving. Truncation is the
+renderer's job: the tab ellipsises at 14rem, the header title at its available width.
+
+`hermes plugins update` is as inert as `install` until the app restarts — it refreshes
+the agent half and does not publish the desktop half.
 
 Reload the desktop half with **Ctrl+K → "Reload desktop plugins"**
 (`plugins.reload`, which re-scans the plugins root without a window reload). **"Reload
 window"** is the heavier fallback — a full `location.reload()` — for when the pane
-itself is wedged. The desktop half also hot-reloads when `plugin.js` changes; the
-Python half needs a gateway restart.
+itself is wedged. The desktop half also hot-reloads when `plugin.js` changes. On the Python side,
+commands and hook reloads land immediately, but **tool schemas only appear in the
+next session** — restart the gateway only to avoid opening one.
 
 ## API
 
@@ -198,9 +201,12 @@ The pane polls cheap and fetches detail on demand:
 
 | Route | Returns | Polled |
 |---|---|---|
-| `GET /lists` | every list as `{id, name, done, total}` — plus the rows of the active list, so a pane that hasn't reloaded still paints | every 3s |
+| `GET /lists` | every list as `{id, name, pinned, done, total, updated_at}` — plus the rows of the active list, so a pane that hasn't reloaded still paints | every 3s |
 | `GET /lists/{name}` | one list with its rows | every 3s, for the list on screen |
-| `POST /lists`, `PATCH/DELETE /items/{id}`, `POST /clear` | full state after the write | on action |
+| `POST /lists` | full state after the write; takes `create_empty: true` for a list with no items (undo of an empty list) | on action |
+| `PATCH /lists/{name}` | full state; `{pinned: true\|false}` | on pin |
+| `PATCH /order` | full state; `{ids: [...]}`, required — reorders the tab strip | on tab drop |
+| `PATCH/DELETE /items/{id}`, `POST /clear` | full state after the write | on action |
 | `DELETE /lists/{name}` | full state plus `{deleted: {name, items}}` | on action |
 | `PATCH /lists/order` | full state, after reordering the tabs to `{ids: [...]}` | on tab drop |
 | `PATCH /lists/{name}/order` | full state, after reordering to `{ids: [...]}` | on drop |
@@ -208,8 +214,13 @@ The pane polls cheap and fetches detail on demand:
 | `GET /lists/{name}/export?fmt=` | `{filename, mime, content}` | on export |
 | `GET /health` | `{ok, lists}` — never the exception text, which carries the store path | — |
 
-Item writes take `?list=<name>`. omitting it falls back to the active list, which is
-**not** the tab on screen — send it explicitly (the pane does).
+Item writes take `?list=` — the pane sends the list **id**; a display name resolves too.
+Omitting it falls back to the active list, which is **not** the tab on screen, so send
+it explicitly.
+
+Tab reordering lives at `PATCH /order`, not `/lists/order`: the latter is a list *name*
+as well, and the static segment shadows the name route — a list called `order` could
+never be pinned.
 
 Measured on a real 22-list / 303-item store: **19.8 KiB → 2.6 KiB per poll**. At the
 documented ceiling (50 lists × 2,000 items) the old single-endpoint shape shipped
@@ -238,6 +249,9 @@ list fetched on demand.
 - **No row virtualisation.** A 2,000-item list mounts 2,000 rows. Fine in the
   hundreds, gooey at the ceiling. Fix, if anyone actually hits it: window the list
   to the visible range, or cap the render behind a "show all" toggle.
+- **`replace_items()` does not dedupe by text**, while `normalise_items()` does. The
+  undo path needs verbatim rows, but a client posting two identical texts makes
+  `tick_set "<text>"` ambiguous. Reachable only through the API, not the pane.
 - **`/lists` still carries the active list's rows.** That is a deliberate compat
   shim for the reload window (desktop hot-reloads, API needs a gateway restart), not
   an oversight; it is one list, not the whole store.
@@ -247,16 +261,18 @@ list fetched on demand.
 ```bash
 python3 scripts/check_setters.py desktop/plugin.js   # mount-time guard
 node --check desktop/plugin.js                       # the file is loaded uncompiled
-cd tests && python3 -m unittest test_core test_api   # 26 core + 11 API
+cd tests && python3 -m unittest test_core test_api   # 69 core + 23 API
 hermes plugins validate . --install-deps             # catalog admission
 hermes plugins doctor . --ci
 ```
 
-`scripts/check_setters.py` catches three mistakes that are valid JavaScript, pass
-`node --check`, pass a server-side render probe, and still kill the pane on mount:
-a `setFoo()` whose `useState` was deleted, a `useX()` used but never imported from
-react, and an `area:` value written as a quoted constant instead of the imported
-one.
+`scripts/check_setters.py` runs five checks, all for mistakes that are valid
+JavaScript and pass `node --check` yet kill the pane on mount or render as nothing:
+a `setFoo()` whose `useState` was deleted; a `setFoo()` declared and never called (a
+control the docs promise but nothing renders); a `useX()` used but never imported
+from react; an `area:` value written as a quoted constant; and a `Button`
+`variant`/`size` the app doesn't define — an unknown variant compiles to no classes
+at all.
 
 Run the tests from inside `tests/`: a `PYTHONPATH` entry pointing at the Hermes
 checkout shadows the name `tests`, and the module is then reported "not found".

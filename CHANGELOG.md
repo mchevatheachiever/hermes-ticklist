@@ -2,6 +2,37 @@
 
 All notable changes to this plugin. Versions follow the `plugin.yaml` version.
 
+## 1.7.3 — 2026-11-08
+
+Fixes from the third review (R1–R5) plus documentation corrections.
+
+### Fixed
+- **R1 — a list named `order` could not be pinned, and the attempt silently reset
+  the tab order.** `PATCH /lists/order` was captured by the tab-reorder route
+  (static segment shadows `{name}`), so pinning a list called `order` wrote an empty
+  tab order instead. Tab reordering moved to `PATCH /order`, and `ids` is now a
+  required field so a stray body 422s rather than writing `[]`.
+- **R2 — a partial tab order lost the user's arrangement.** The tail was rebuilt
+  from a set (hash order). It now comes from the previous `order`, then any list not
+  in it, so "these first, the rest keep their places" is true.
+- **R3 — a long tab name clipped with no ellipsis.** The tab now truncates at 14rem
+  with `text-overflow: ellipsis` (inline; a plugin class is never compiled).
+- **R4 — the list inventory was attached to all six tools** (~1.2k tokens per call on
+  a 49-list store). It now rides on `tick_list` only; the other five return the list
+  they acted on.
+- **R5 — `art`/`export` could resolve a second `core` module** under the package
+  load path, giving two `TickError` classes in one process. The probe now also
+  checks `ticklist.core`.
+- `read()` no longer lists `JSONDecodeError` alongside `ValueError` (it is one).
+
+### Docs
+Corrected twelve statements that had drifted from the code: the grip is a focusable
+handle, not a literal `<button>`, and why; JSON export is not importable; the
+inventory is `tick_list`-only; list names are bounded at 200; tab truncation; what a
+gateway restart does and doesn't buy; the `/lists` row shape; `create_empty`; the
+missing `PATCH /lists/{name}` row; `?list=` takes an id; test counts (92); and the
+guard runs five checks, not three.
+
 ## 1.7.2 — 2026-11-08
 
 ### Fixed

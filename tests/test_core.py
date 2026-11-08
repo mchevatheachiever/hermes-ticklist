@@ -275,10 +275,11 @@ class ListOrderTest(unittest.TestCase):
         with self.assertRaises(core.TickError):
             self.store.set_list_order(["alpha", "alpha"])
 
-    def test_a_partial_order_keeps_the_rest(self):
-        self.store.set_list_order(["charlie"])
-        self.assertEqual(self.names()[0], "Charlie")
-        self.assertEqual(sorted(self.names()), ["Alpha", "Bravo", "Charlie"])
+    def test_a_partial_order_keeps_the_existing_order(self):
+        # R2: the tail used to be appended from a set, i.e. in hash order.
+        self.store.set_list_order(["charlie", "bravo", "alpha"])
+        self.store.set_list_order(["bravo"])
+        self.assertEqual(self.names(), ["Bravo", "Charlie", "Alpha"])
 
     def test_new_lists_join_the_end(self):
         self.store.set_list_order(["charlie", "bravo", "alpha"])

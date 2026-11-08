@@ -276,7 +276,7 @@ class TickStore:
             return _empty_state()
         try:
             raw = json.loads(text)
-        except (json.JSONDecodeError, ValueError, TypeError):
+        except (ValueError, TypeError):  # JSONDecodeError is a ValueError
             # Quarantine before returning an empty state: the very next write
             # would otherwise replace the user's items with a fresh empty file,
             # turning one corrupt byte into a total, silent wipe.
@@ -540,7 +540,14 @@ class TickStore:
                 raise TickError("the tab order names a list that does not exist")
             if len(set(wanted)) != len(wanted):
                 raise TickError("the tab order repeats a list")
-            state["order"] = wanted + [key for key in known if key not in wanted]
+            # A partial caller means "these first, the rest keep their places" —
+            # so the tail comes from the *previous* order, not from the dict (which
+            # would be hash order when it is a set, or creation order when it is
+            # not, and either way loses the tabs the user arranged).
+            previous = state.get("order") or []
+            tail = [key for key in previous if key not in wanted]
+            tail += [key for key in state["lists"] if key not in wanted and key not in previous]
+            state["order"] = wanted + tail
             self.write(state)
         return {"order": state["order"]}
 

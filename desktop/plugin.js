@@ -430,7 +430,7 @@ function TickPane({ ctx }) {
       const [moved] = order.splice(from, 1)
       order.splice(from < to ? to - 1 : to, 0, moved)
       ctx
-        .rest('/lists/order', { method: 'PATCH', body: { ids: order } })
+        .rest('/order', { method: 'PATCH', body: { ids: order } })
         .then(refresh)
         .catch((err) => setError(`could not reorder tabs: ${err && err.message ? err.message : err}`))
     },
@@ -714,7 +714,16 @@ function TickPane({ ctx }) {
                           entry.id === (list && list.id) ? 'var(--ui-accent)' : 'transparent'
                         }`,
                         cursor: 'grab',
-                        userSelect: 'none'
+                        userSelect: 'none',
+                        // The tab strip never truncates a 200-char name by
+                        // itself; inline because a plugin's own class is never
+                        // compiled into the app's CSS.
+                        maxWidth: '14rem',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        display: 'inline-block',
+                        verticalAlign: 'bottom'
                       },
                       children: `${entry.pinned ? '📌 ' : ''}${entry.name} (${entry.done}/${entry.total})`
                     }),

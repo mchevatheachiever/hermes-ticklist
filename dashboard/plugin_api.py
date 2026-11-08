@@ -55,7 +55,9 @@ class ItemsPayload(BaseModel):
 
 
 class ListOrderPayload(BaseModel):
-    ids: list[str] = Field(default_factory=list)
+    # Required: a stray PATCH body must 422 rather than silently writing [] and
+    # resetting the user's tab order to creation order.
+    ids: list[str]
 
 
 class PinPayload(BaseModel):
@@ -141,10 +143,14 @@ async def replace_items(name: str, payload: ItemsPayload) -> dict[str, Any]:
     return _state()
 
 
-@router.patch("/lists/order")
+@router.patch("/order")
 async def set_list_order(payload: ListOrderPayload) -> dict[str, Any]:
-    """Reorder the tab strip. Declared before /lists/{name} so it isn't captured
-    by the name route."""
+    """Reorder the tab strip.
+
+    Deliberately NOT `/lists/order`: that path is a list *name* too, and the
+    static segment shadows it — a list called "order" could never be pinned
+    (`PATCH /lists/order` hit this route, resetting the tab order instead).
+    """
     try:
         core.TickStore().set_list_order(payload.ids)
     except core.TickError as exc:

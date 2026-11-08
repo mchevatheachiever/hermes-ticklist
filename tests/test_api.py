@@ -193,14 +193,43 @@ class ApiTest(unittest.TestCase):
         for name in ("alpha", "bravo", "charlie"):
             self.client.post("/api/plugins/ticklist/lists", json={"items": ["x"], "list": name})
         response = self.client.patch(
-            "/api/plugins/ticklist/lists/order", json={"ids": ["charlie", "alpha", "bravo"]}
+            "/api/plugins/ticklist/order", json={"ids": ["charlie", "alpha", "bravo"]}
         )
         self.assertEqual(response.status_code, 200, response.text)
         self.assertEqual([e["name"] for e in response.json()["lists"]], ["Charlie", "Alpha", "Bravo"])
         self.assertEqual(
-            self.client.patch("/api/plugins/ticklist/lists/order", json={"ids": ["nope"]}).status_code,
+            self.client.patch("/api/plugins/ticklist/order", json={"ids": ["nope"]}).status_code,
             400,
         )
+
+    def test_a_list_named_order_can_still_be_pinned(self):
+        # R1: PATCH /lists/order was shadowed by the reorder route, so a list
+        # called "order" could never be pinned — and the collision silently reset
+        # the tab order instead.
+        for name in ("alpha", "bravo"):
+            self.client.post("/api/plugins/ticklist/lists", json={"items": ["x"], "list": name})
+        self.client.post("/api/plugins/ticklist/lists", json={"items": ["x"], "list": "order"})
+        self.client.patch(
+            "/api/plugins/ticklist/order", json={"ids": ["order", "alpha", "bravo"]}
+        )
+
+        pinned = self.client.patch("/api/plugins/ticklist/lists/order", json={"pinned": True})
+        self.assertEqual(pinned.status_code, 200, pinned.text)
+        entry = next(e for e in pinned.json()["lists"] if e["id"] == "order")
+        self.assertTrue(entry["pinned"])
+
+        # and the tab order survived the pin
+        self.assertEqual([e["id"] for e in pinned.json()["lists"]], ["order", "alpha", "bravo"])
+
+    def test_tab_order_requires_ids(self):
+        # A stray body must 422, not write [] over the user's order.
+        for name in ("alpha", "bravo"):
+            self.client.post("/api/plugins/ticklist/lists", json={"items": ["x"], "list": name})
+        self.client.patch("/api/plugins/ticklist/order", json={"ids": ["bravo", "alpha"]})
+        bad = self.client.patch("/api/plugins/ticklist/order", json={"pinned": True})
+        self.assertEqual(bad.status_code, 422)
+        after = self.client.get("/api/plugins/ticklist/lists").json()
+        self.assertEqual([e["id"] for e in after["lists"]], ["bravo", "alpha"])
 
     def test_pin_route(self):
         self.client.post("/api/plugins/ticklist/lists", json={"items": ["a"], "list": "work"})
