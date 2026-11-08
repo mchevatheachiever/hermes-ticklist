@@ -150,6 +150,13 @@ class RenderTest(unittest.TestCase):
         self.assertIn("0/0 done", text)
         self.assertIn("empty", text)
 
+    def test_unticked_sorted_before_ticked(self):
+        entry = self.entry()
+        text = art.render_list(entry)
+        lines = [line for line in text.splitlines() if line.startswith("[")]
+        self.assertEqual(lines[0], "[ ] brackets")
+        self.assertEqual(lines[-1], "[x] screws")
+
     def test_change_line(self):
         self.assertIn("ticked", art.render_change({"text": "a", "done": True}))
         self.assertIn("unticked", art.render_change({"text": "a", "done": False}))

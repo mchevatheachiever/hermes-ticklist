@@ -13,8 +13,18 @@ BOX_DONE = "[x]"
 BOX_TODO = "[ ]"
 
 
+def ordered_items(entry: dict[str, Any]) -> list[dict[str, Any]]:
+    """Unticked first, ticked collected at the bottom — stable within each group.
+
+    A checklist is read to find what is left, so the finished rows belong out of
+    the way; regrouping must not shuffle the user's own ordering.
+    """
+    items = list(entry.get("items") or [])
+    return sorted(items, key=lambda item: bool(item.get("done")))
+
+
 def render_list(entry: dict[str, Any], *, width: int = 46) -> str:
-    items: Sequence[dict[str, Any]] = entry.get("items") or []
+    items: Sequence[dict[str, Any]] = ordered_items(entry)
     done = sum(1 for item in items if item["done"])
     total = len(items)
     title = f"{entry.get('name', 'ticklist')} — {done}/{total} done"

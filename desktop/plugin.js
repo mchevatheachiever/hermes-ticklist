@@ -95,7 +95,10 @@ function TickPane({ ctx, onClose }) {
     state.lists.find((entry) => entry.id === state.active) ||
     state.lists[0] ||
     null
-  const items = list ? list.items : []
+  // unticked first, ticked gathered at the bottom (stable within each group)
+  const items = list
+    ? [...list.items].sort((a, b) => Number(a.done) - Number(b.done))
+    : []
   const done = list ? list.done : 0
   const total = list ? list.total : 0
 
