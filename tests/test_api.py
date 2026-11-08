@@ -74,6 +74,37 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("done,text", result.stdout)
 
+    def test_art_resolves_one_core_under_a_package_import(self):
+        # F3: __init__ imports `.art` before `.core`, so art used to fall through
+        # to a second file-load of core.py — two TickError classes in one process.
+        import os
+        import shutil
+        import subprocess
+        import sys as _sys
+
+        pkg = Path(self.tmp.name) / "pkg"
+        pkg.mkdir()
+        shutil.copy(ROOT / "art.py", pkg / "art.py")
+        shutil.copy(ROOT / "core.py", pkg / "core.py")
+        (pkg / "__init__.py").write_text("from . import art\n")
+
+        script = (
+            "import sys\n"
+            f"sys.path.insert(0, {str(self.tmp.name)!r})\n"
+            "import pkg.art as a, pkg.core as c\n"
+            "print(a._core_module() is c)\n"
+        )
+        env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+        result = subprocess.run(
+            [_sys.executable, "-c", script],
+            cwd=str(self.tmp.name),
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("True", result.stdout)
+
     def test_health(self):
         self.assertEqual(self.client.get("/api/plugins/ticklist/health").json()["ok"], True)
 

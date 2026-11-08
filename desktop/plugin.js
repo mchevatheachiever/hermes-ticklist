@@ -260,7 +260,17 @@ function TickPane({ ctx }) {
       haptic('tap')
       try {
         if (!item.done && removeOnTick) {
+          const snapshot = rows
+          const name = list ? list.name : ''
           await ctx.rest(listPath(item.id), { method: 'DELETE' })
+          // Same undo slot as a manual removal: this deletes a row too.
+          setLastAction({
+            kind: 'remove',
+            name,
+            id: list ? list.id : '',
+            rows: snapshot,
+            label: `Removed "${item.text}"`
+          })
           refresh()
           post(`Ticked and removed — ${item.text}`)
           return
@@ -275,7 +285,7 @@ function TickPane({ ctx }) {
         setError(`could not save: ${err && err.message ? err.message : err}`)
       }
     },
-    [ctx, listPath, post, refresh, removeOnTick]
+    [ctx, list, listPath, post, refresh, removeOnTick, rows]
   )
 
   const remove = useCallback(

@@ -25,6 +25,14 @@ def _core_module():
     import importlib.util
     import sys
 
+    try:  # the package form: plugin.py imports this module as ticklist.art
+        from . import core as _sibling
+    except ImportError:
+        pass
+    else:
+        if hasattr(_sibling, "ordered_items"):
+            return _sibling
+
     for name in ("ticklist_core", "ticklist.core", "core"):
         module = sys.modules.get(name)
         if module is not None and hasattr(module, "ordered_items"):

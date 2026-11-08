@@ -31,20 +31,7 @@ def _payload(entry: dict[str, Any], *, inventory: bool = False, **extra: Any) ->
         # Only tick_list carries the whole store: it is the tool the model calls
         # to answer "what lists do I have" / "which are pinned". Putting ~1.2k
         # tokens of inventory on tick_set and tick_remove as well bought nothing.
-        try:
-            summary = _store().summary()
-        except OSError:  # pragma: no cover - unreadable store
-            summary = {"lists": [], "active": entry["id"]}
-        payload["lists"] = [
-            {
-                "name": meta["name"],
-                "pinned": meta["pinned"],
-                "done": meta["done"],
-                "total": meta["total"],
-                "active": meta["id"] == summary["active"],
-            }
-            for meta in summary["lists"]
-        ]
+        payload["lists"] = _inventory()
     return payload
 
 
@@ -121,6 +108,33 @@ def tick_clear(args: dict, **kwargs: Any) -> str:
     return tool_result(_payload(result["list"], removed=result["removed"]))
 
 
+def _inventory() -> list[dict[str, Any]]:
+    """Every list with its pinned flag — what is left after a delete."""
+    try:
+        summary = _store().summary()
+    except OSError:  # pragma: no cover - unreadable store
+        return []
+    return [
+        {
+            "name": meta["name"],
+            "pinned": meta["pinned"],
+            "done": meta["done"],
+            "total": meta["total"],
+            "active": meta["id"] == summary["active"],
+        }
+        for meta in summary["lists"]
+    ]
+
+
+def _payload_deleted(result: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "success": True,
+        "deleted": result["name"],
+        "items_removed": result["items"],
+        "display": f"Deleted list {result['name']} — {result['items']} item(s) gone",
+    }
+
+
 def tick_delete_list(args: dict, **kwargs: Any) -> str:
     del kwargs
     name = args.get("list")
@@ -132,11 +146,6 @@ def tick_delete_list(args: dict, **kwargs: Any) -> str:
         return tool_error(str(exc))
     except OSError as exc:
         return tool_error(f"could not write the store: {exc}")
-    return tool_result(
-        {
-            "success": True,
-            "deleted": result["name"],
-            "items_removed": result["items"],
-            "display": f"Deleted list {result['name']} — {result['items']} item(s) gone",
-        }
-    )
+    payload = _payload_deleted(result)
+    payload["lists"] = _inventory()
+    return tool_result(payload)

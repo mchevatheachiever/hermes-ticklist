@@ -208,7 +208,6 @@ The pane polls cheap and fetches detail on demand:
 | `PATCH /order` | full state; `{ids: [...]}`, required — reorders the tab strip | on tab drop |
 | `PATCH/DELETE /items/{id}`, `POST /clear` | full state after the write | on action |
 | `DELETE /lists/{name}` | full state plus `{deleted: {name, items}}` | on action |
-| `PATCH /lists/order` | full state, after reordering the tabs to `{ids: [...]}` | on tab drop |
 | `PATCH /lists/{name}/order` | full state, after reordering to `{ids: [...]}` | on drop |
 | `PATCH /lists/{name}/items` | full state, after writing rows back verbatim (`{items: [...]}`) | undo |
 | `GET /lists/{name}/export?fmt=` | `{filename, mime, content}` | on export |
@@ -261,7 +260,7 @@ list fetched on demand.
 ```bash
 python3 scripts/check_setters.py desktop/plugin.js   # mount-time guard
 node --check desktop/plugin.js                       # the file is loaded uncompiled
-cd tests && python3 -m unittest test_core test_api   # 69 core + 23 API
+cd tests && python3 -m unittest test_core test_api   # 69 core + 25 API
 hermes plugins validate . --install-deps             # catalog admission
 hermes plugins doctor . --ci
 ```

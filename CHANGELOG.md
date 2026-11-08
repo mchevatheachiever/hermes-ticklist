@@ -2,6 +2,29 @@
 
 All notable changes to this plugin. Versions follow the `plugin.yaml` version.
 
+## 1.7.4 — 2026-11-08
+
+Fixes from the fourth review (F1–F3) plus two nits.
+
+### Fixed
+- **F1 — the README still listed `PATCH /lists/order` as the tab-reorder route.** That
+  path is now the *pin* route for a list named `order`, so a client following the
+  docs would get a 200, pin a list, and not reorder anything. Row deleted.
+- **F2 — test counts** corrected to 69 core + 25 API (94).
+- **F3 — `art.py` resolved a second `core` module under the package load path.**
+  `__init__.py` imports `.art` before `.core`, so art's probe ran before `ticklist.core`
+  existed in `sys.modules` and fell through to a file load — two `TickError` classes in
+  one process. The lookup now asks its own package first (`from . import core`), which
+  is order-independent. Verified: identity `False` before the fix, `True` after, and a
+  test asserts it in a synthetic package.
+
+### Changed
+- **"Remove from list on tick" is now undoable.** It deletes a row but never filled the
+  undo slot, while the README promised undo after "removing one row". Same slot as a
+  manual removal, same 12-second bar.
+- `tick_delete_list` now carries the list inventory too — right after a delete is when
+  "what's left" matters most.
+
 ## 1.7.3 — 2026-11-08
 
 Fixes from the third review (R1–R5) plus documentation corrections.
@@ -30,7 +53,7 @@ Corrected twelve statements that had drifted from the code: the grip is a focusa
 handle, not a literal `<button>`, and why; JSON export is not importable; the
 inventory is `tick_list`-only; list names are bounded at 200; tab truncation; what a
 gateway restart does and doesn't buy; the `/lists` row shape; `create_empty`; the
-missing `PATCH /lists/{name}` row; `?list=` takes an id; test counts (92); and the
+missing `PATCH /lists/{name}` row; `?list=` takes an id; test counts (94); and the
 guard runs five checks, not three.
 
 ## 1.7.2 — 2026-11-08
