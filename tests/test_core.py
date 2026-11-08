@@ -157,6 +157,13 @@ class RenderTest(unittest.TestCase):
         self.assertEqual(lines[0], "[ ] brackets")
         self.assertEqual(lines[-1], "[x] screws")
 
+    def test_long_labels_are_ellipsised_not_cut(self):
+        entry = self.entry()
+        entry["items"][0]["text"] = "x" * 200
+        text = art.render_list(entry)
+        self.assertIn("…", text)
+        self.assertNotIn("x" * 60, text)
+
     def test_change_line(self):
         self.assertIn("ticked", art.render_change({"text": "a", "done": True}))
         self.assertIn("unticked", art.render_change({"text": "a", "done": False}))

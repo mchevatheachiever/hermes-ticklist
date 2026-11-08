@@ -344,16 +344,3 @@ class TickStore:
                 for entry in state["lists"].values()
             ],
         }
-
-
-def format_list(entry: dict[str, Any]) -> str:
-    """Plain-text rendering for text-only surfaces (CLI, TUI, Discord)."""
-    if not entry["items"]:
-        return f"{entry['name']}: empty"
-    lines = []
-    done = sum(1 for item in entry["items"] if item["done"])
-    lines.append(f"{entry['name']} — {done}/{len(entry['items'])} done")
-    for item in entry["items"]:
-        mark = "[x]" if item["done"] else "[ ]"
-        lines.append(f"{mark} {item['text']}")
-    return "\n".join(lines)

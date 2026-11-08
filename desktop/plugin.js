@@ -2,9 +2,9 @@
  * TickList — desktop half.
  *
  * A pane of checkboxes. Every tick or untick is posted into the conversation as
- * it happens, so the agent sees the change without being asked. The pane can be
- * collapsed to a header strip, or closed outright and reopened from ⌘K — the
- * disposer `ctx.register` hands back is what makes that reversible.
+ * it happens, so the agent sees the change without being asked. The pane opens
+ * through `host.openWorkspace`; the tab's own Close tears it down and the
+ * status-bar chip re-opens it by the same id.
  *
  * Plain ESM, loaded uncompiled: jsx() calls, no JSX syntax.
  * Only @hermes/plugin-sdk, react and react/jsx-runtime resolve.
@@ -12,7 +12,7 @@
 
 import { Button, cn, haptic, host, PALETTE_AREA, useQuery } from '@hermes/plugin-sdk'
 import { jsx, jsxs } from 'react/jsx-runtime'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 const ID = 'ticklist'
 
@@ -81,7 +81,6 @@ function TickPane({ ctx }) {
   const [selected, setSelected] = useState('')
   const [announce, setAnnounce] = useState(true)
   const [removeOnTick, setRemoveOnTick] = useState(false)
-  const inputRef = useRef(null)
 
   // Remembered across sessions; the pane state is scratch, this is the setting.
   useEffect(() => {
@@ -298,7 +297,6 @@ function TickPane({ ctx }) {
         className: 'flex shrink-0 flex-col gap-1',
         children: [
           jsx('textarea', {
-            ref: inputRef,
             value: draft,
             onChange: (event) => setDraft(event.target.value),
             onKeyDown: (event) => {

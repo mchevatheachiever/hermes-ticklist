@@ -42,7 +42,14 @@ def tick_add(args: dict, **kwargs: Any) -> str:
 
     entry = result["list"]
     added = [item["text"] for item in result["added"]]
-    return tool_result(_payload(entry, added=added, skipped=len(args.get("items") or []) - len(added)))
+    raw = args.get("items")
+    if isinstance(raw, str):
+        requested = len([line for line in raw.splitlines() if line.strip()])
+    elif isinstance(raw, (list, tuple)):
+        requested = len(raw)
+    else:
+        requested = 0
+    return tool_result(_payload(entry, added=added, skipped=max(0, requested - len(added))))
 
 
 def tick_set(args: dict, **kwargs: Any) -> str:

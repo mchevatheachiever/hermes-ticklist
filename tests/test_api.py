@@ -97,3 +97,18 @@ class ApiTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+    def test_health_does_not_leak_the_store_path(self):
+        api = load_api()
+        original = api.core.TickStore.read
+
+        def boom(self):
+            raise OSError("/home/someone/.hermes/plugin-data/ticklist/lists.json")
+
+        api.core.TickStore.read = boom
+        try:
+            response = api.health()
+        finally:
+            api.core.TickStore.read = original
+        self.assertFalse(response["ok"])
+        self.assertNotIn("/home", response["error"])

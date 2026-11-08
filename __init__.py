@@ -1,12 +1,11 @@
 """ticklist — a checklist the agent can see you tick.
 
 Agent half: five tools. Desktop half: `desktop/plugin.js`, a pane of checkboxes
-that posts each tick/untick into the conversation as it happens, and can be
-closed and reopened from the command palette without visiting Settings.
+that posts each tick/untick into the conversation as it happens.
 
-The pane is registered through a disposer we keep, so `TickList: show/hide` can
-take it out of the layout and put it back — the fix for "I closed it and now it
-lives in Settings forever".
+The pane opens through `host.openWorkspace`, so the tab's own Close tears it down
+and re-opening the same id fronts the tab again — driven by a status-bar chip that
+is always on screen. No Settings trip, no keyboard.
 """
 
 from __future__ import annotations

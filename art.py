@@ -37,12 +37,14 @@ def render_list(entry: dict[str, Any], *, width: int = 46) -> str:
     bar = "█" * filled + "·" * (bar_width - filled)
 
     lines = [title, f"{bar} {done * 100 // total if total else 0}%", ""]
-    label_width = min(34, max(len(str(item["text"])) for item in items))
+    label_width = min(width - 6, max(len(str(item["text"])) for item in items))
     for item in items:
         mark = BOX_DONE if item["done"] else BOX_TODO
-        text = str(item["text"])[:label_width]
-        if item["done"]:
-            text = f"{text}"
+        text = str(item["text"])
+        if len(text) > label_width:
+            # An ellipsis, not a clean cut: a silently halved label reads as a
+            # different item.
+            text = text[: max(1, label_width - 1)] + "…"
         lines.append(f"{mark} {text}")
     return "\n".join(lines)
 

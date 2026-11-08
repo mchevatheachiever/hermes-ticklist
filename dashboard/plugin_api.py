@@ -8,6 +8,7 @@ class creation, and stringised ones break when this module is imported by path.
 """
 
 import importlib.util
+import logging
 import sys
 from pathlib import Path
 from typing import Any
@@ -33,6 +34,7 @@ def _load_core() -> Any:
 
 core = _load_core()
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 class AddPayload(BaseModel):
@@ -66,15 +68,18 @@ def _view(entry: dict[str, Any]) -> dict[str, Any]:
 
 
 def _state() -> dict[str, Any]:
-    store = core.TickStore()
-    summary = store.summary()
-    lists = []
-    for meta in summary["lists"]:
-        try:
-            lists.append(_view(store.get_list(meta["id"])))
-        except core.TickError:  # pragma: no cover - raced removal
-            continue
-    return {"ok": True, "active": summary["active"], "lists": lists}
+    """One read of the store for the whole payload.
+
+    ``get_list`` re-reads and re-parses ``lists.json`` on every call, so looping
+    it over the summary made each poll O(lists^2) file reads — 50 lists meant 50
+    parses per request, every 3 seconds.
+    """
+    state = core.TickStore().read()
+    return {
+        "ok": True,
+        "active": state["active"],
+        "lists": [_view(entry) for entry in state["lists"].values()],
+    }
 
 
 @router.get("/lists")
@@ -134,5 +139,8 @@ async def health() -> dict[str, Any]:
     try:
         state = core.TickStore().read()
     except Exception as exc:  # noqa: BLE001 - reported, not raised
-        return {"ok": False, "error": str(exc)}
+        # Never echo the exception: it carries the store's absolute path, and
+        # /health is reachable by anything that can reach the dashboard.
+        logger.warning("ticklist: health check failed: %s", exc)
+        return {"ok": False, "error": "store unreadable"}
     return {"ok": True, "lists": len(state["lists"])}

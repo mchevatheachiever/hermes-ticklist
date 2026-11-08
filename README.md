@@ -14,9 +14,10 @@ fence is actually finished without you typing it out.
 hermes plugins install ticklist
 ```
 
-Enable it in **Settings ▸ Plugins**, then open the **ticks** pane. `⌘K →
-TickList: show / hide checklist` toggles the pane at any time — closing it does
-not mean hunting through Settings to get it back.
+Enable it in **Settings ▸ Plugins**. The **ticks** pane opens in the terminal
+pane's zone, and a **`☑ done/total` chip** stays in the status bar: click it to
+open the pane, close the tab when you don't want it, click the chip to bring it
+back. No typing, no trip to Settings.
 
 ## Use
 
@@ -33,11 +34,11 @@ which is what makes the agent see it.
 
 ## Closing, collapsing
 
-- **✕** in the pane header closes it. Reopen from ⌘K — the pane is unregistered
-  and re-registered through the disposer `ctx.register` returns, so no trip to
-  Settings.
+- **Tab ✕** closes the pane; the **status-bar chip** re-opens it by the same id.
 - **▾** collapses it to a single header line showing `done/total`.
 - **💬** decides whether ticks are posted to the chat (each post is a model turn).
+- **☐ remove from list on tick** — off by default, remembered across sessions;
+  with it on, a tick deletes the row instead of leaving it struck through.
 
 ## Tools
 
@@ -84,6 +85,12 @@ shop — 1/3 done
 - **No credentials**, no environment variables, no telemetry.
 - **Chat hand-off**: a tick posts `Ticked — <item>` into the active composer.
   The 💬 toggle turns it off; nothing else in the plugin writes to the chat.
+- **Item text is sent to your model provider.** That post is a real user turn, so
+  the item name goes to whichever provider serves the session and is stored in the
+  session transcript. Don't put secrets on a list with announcing on.
+- **API authorisation is the host's, not the plugin's.** Routes are mounted at
+  `/api/plugins/ticklist/` behind the Hermes dashboard's own access control; the
+  plugin adds no auth of its own and should not be exposed beyond it.
 
 ## Development
 
@@ -94,10 +101,12 @@ python3 -m unittest tests.test_core                  # core + art, stdlib only
 hermes plugins validate . --install-deps             # catalog admission gate
 ```
 
-API tests need FastAPI (the Hermes runtime venv has it):
+API tests need FastAPI (the Hermes runtime venv has it). Run them from inside
+`tests/` — a `PYTHONPATH` entry for the Hermes checkout shadows the name `tests`
+with its own directory and the module is then "not found":
 
 ```bash
-"$HERMES_VENV/bin/python" -m unittest tests.test_api
+cd tests && "$HERMES_VENV/bin/python" -m unittest test_api
 ```
 
 ## License
