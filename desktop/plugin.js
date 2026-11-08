@@ -355,17 +355,6 @@ function StatusChip({ ctx, onOpen }) {
     type: 'button',
     onClick: () => {
       haptic('tap')
-      const hasReveal = typeof ctx.revealPane === 'function'
-      const hasUndismiss = typeof ctx.undismissPane === 'function'
-      const hasVis = typeof ctx.paneVisibility === 'function'
-      try {
-        host.notify({
-          kind: 'info',
-          message: `chip: reveal=${hasReveal} undismiss=${hasUndismiss} vis=${hasVis} id=${ID}:pane`
-        })
-      } catch {
-        /* notification surface missing — the toast is only diagnostic */
-      }
       onOpen()
     },
     title: 'TickList — click to open the pane',
@@ -379,34 +368,44 @@ export default {
   id: ID,
   name: 'TickList',
   register(ctx) {
-    const paneId = `${ID}:pane`
-
-    const showPane = () => {
-      // Forget a persisted Close, then front it — the SDK's own "user asked for
-      // this pane" path. Registering a pane at runtime does not re-admit it to
-      // the layout tree, which is why the disposer approach silently failed.
+    // host.openWorkspace is the runtime-reopenable pane door: it docks a
+    // closeable tile beside the main workspace, the tab's own Close tears it
+    // down, and calling it again with the same id FRONTS the existing tab
+    // instead of stacking a duplicate. ctx.revealPane/undismissPane are not in
+    // this desktop build (verified from the running app), so they can't be the
+    // way back — and a plain ctx.register('panes') never re-admits a pane that
+    // was closed, which is why the earlier disposer version failed.
+    const open = () => {
+      if (typeof host.openWorkspace !== 'function') {
+        return false
+      }
       try {
-        if (typeof ctx.undismissPane === 'function') ctx.undismissPane(paneId)
-        if (typeof ctx.revealPane === 'function') ctx.revealPane(paneId)
+        host.openWorkspace('ticklist', {
+          title: 'ticks',
+          render: () => jsx(TickPane, { ctx })
+        })
+        return true
       } catch {
-        /* older desktop: the tab strip still has it */
+        return false
       }
     }
 
-    ctx.register({
-      id: 'pane',
-      area: 'panes',
-      title: 'ticks',
-      data: { placement: 'right', width: '360px' },
-      render: () => jsx(TickPane, { ctx })
-    })
+    if (!open()) {
+      // Older desktop: fall back to a plain pane; the zone tab strip still has it.
+      ctx.register({
+        id: 'pane',
+        area: 'panes',
+        title: 'ticks',
+        data: { placement: 'right', width: '360px' },
+        render: () => jsx(TickPane, { ctx })
+      })
+    }
 
-    // The chip is the UI door: always on screen, one click to bring the pane back.
     ctx.register({
       id: 'chip',
       area: 'statusBar.right',
       order: 128,
-      render: () => jsx(StatusChip, { ctx, onOpen: showPane })
+      render: () => jsx(StatusChip, { ctx, onOpen: open })
     })
 
     ctx.register({
@@ -416,7 +415,7 @@ export default {
         id: `${ID}.toggle`,
         label: 'TickList: show checklist',
         keywords: ['tick', 'checklist', 'todo', 'tasks', 'list'],
-        run: showPane
+        run: open
       }
     })
   }
