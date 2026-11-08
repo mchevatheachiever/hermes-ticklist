@@ -30,6 +30,16 @@ function Row({
   const [busy, setBusy] = useState(false)
   return jsxs('div', {
     className: 'group flex items-start gap-2 rounded px-1 py-1 hover:bg-(--chrome-action-hover)',
+    // Drop target: the whole row accepts a drop, the grip starts the drag.
+    onDragOver: (event) => {
+      event.preventDefault()
+      event.dataTransfer.dropEffect = 'move'
+      onDragOver(item)
+    },
+    onDrop: (event) => {
+      event.preventDefault()
+      onDrop(item)
+    },
     style: {
       opacity: dragging ? 0.4 : 1,
       // A line where the row will land — inline, because a plugin's own Tailwind
@@ -38,9 +48,12 @@ function Row({
     },
     children: [
       // The grip is the handle — only it is draggable, so item text stays
-      // selectable and copyable. It is a button so the keyboard can reorder too.
-      jsx('button', {
-        type: 'button',
+      // selectable and copyable. It must NOT be a <button>: Chromium refuses to
+      // start a drag from one. A focusable span with role=button gets the
+      // keyboard path without the dead spot.
+      jsx('span', {
+        role: 'button',
+        tabIndex: 0,
         draggable: true,
         title: 'Drag to reorder, or focus and press ↑ ↓',
         'aria-label': `Reorder ${item.text}. Use the up and down arrows.`,
@@ -49,15 +62,6 @@ function Row({
           // Firefox needs data set for a drag to start at all.
           event.dataTransfer.setData('text/plain', item.id)
           onDragStart(item)
-        },
-        onDragOver: (event) => {
-          event.preventDefault()
-          event.dataTransfer.dropEffect = 'move'
-          onDragOver(item)
-        },
-        onDrop: (event) => {
-          event.preventDefault()
-          onDrop(item)
         },
         onDragEnd: () => onDragStart(null),
         onKeyDown: (event) => {
