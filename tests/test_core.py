@@ -193,6 +193,41 @@ class StoreTest(unittest.TestCase):
         self.assertEqual(sum(1 for i in entry["items"] if i["done"]), 1)
 
 
+class PinTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.store = core.TickStore(Path(self.tmp.name))
+        for name in ("work", "shop", "jobs"):
+            self.store.add_items(name, ["x"])
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def names(self):
+        return [entry["name"] for entry in self.store.summary()["lists"]]
+
+    def test_pinning_moves_a_list_to_the_front(self):
+        self.store.set_pinned("jobs", True)
+        self.assertEqual(self.names(), ["Jobs", "Work", "Shop"])
+        self.assertTrue(self.store.summary()["lists"][0]["pinned"])
+
+    def test_unpinning_returns_it_to_its_place(self):
+        self.store.set_pinned("jobs", True)
+        self.store.set_pinned("jobs", False)
+        self.assertEqual(self.names(), ["Work", "Shop", "Jobs"])
+
+    def test_pin_survives_a_reload(self):
+        self.store.set_pinned("shop", True)
+        self.assertTrue(core.TickStore(Path(self.tmp.name)).summary()["lists"][0]["pinned"])
+
+    def test_two_pins_keep_their_relative_order(self):
+        # Stable sort: two pinned lists keep the order they were created in, not
+        # the order they were pinned in.
+        self.store.set_pinned("jobs", True)
+        self.store.set_pinned("shop", True)
+        self.assertEqual(self.names(), ["Shop", "Jobs", "Work"])
+
+
 class ReorderTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -317,6 +352,11 @@ class NameTest(unittest.TestCase):
 
 
 class PayloadTest(unittest.TestCase):
+    def test_done_state_survives_a_restore(self):
+        # Undo re-posts the rows as {text, done}; the done flags must come back.
+        items = core.normalise_items([{"text": "a", "done": True}, {"text": "b", "done": False}])
+        self.assertEqual([item["done"] for item in items], [True, False])
+
     def test_mapping_items_are_refused(self):
         # A model posting {"text": "milk"} iterates a dict's keys and would store
         # an item literally named "text".

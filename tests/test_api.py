@@ -93,6 +93,34 @@ class ApiTest(unittest.TestCase):
         self.assertEqual([entry["id"] for entry in body["lists"]], ["jobs"])
         self.assertEqual(self.client.delete("/api/plugins/ticklist/lists/shop").status_code, 404)
 
+    def test_pin_route(self):
+        self.client.post("/api/plugins/ticklist/lists", json={"items": ["a"], "list": "work"})
+        self.client.post("/api/plugins/ticklist/lists", json={"items": ["b"], "list": "shop"})
+        response = self.client.patch("/api/plugins/ticklist/lists/shop", json={"pinned": True})
+        self.assertEqual(response.status_code, 200, response.text)
+        first = response.json()["lists"][0]
+        self.assertEqual(first["id"], "shop")
+        self.assertTrue(first["pinned"])
+        self.assertEqual(
+            self.client.patch("/api/plugins/ticklist/lists/nope", json={"pinned": True}).status_code,
+            404,
+        )
+
+    def test_clear_targets_the_named_list(self):
+        self.client.post("/api/plugins/ticklist/lists", json={"items": ["a", "b"], "list": "shop"})
+        other = self.client.post(
+            "/api/plugins/ticklist/lists", json={"items": ["c"], "list": "jobs"}
+        ).json()
+        jobs_entry = next(entry for entry in other["lists"] if entry["id"] == "jobs")
+        item_id = jobs_entry["items"][0]["id"]
+        self.client.patch(f"/api/plugins/ticklist/items/{item_id}?list=jobs", json={"done": True})
+        cleared = self.client.post("/api/plugins/ticklist/clear?list=jobs", json={"done_only": True})
+        self.assertEqual(cleared.status_code, 200, cleared.text)
+        jobs = next(entry for entry in cleared.json()["lists"] if entry["id"] == "jobs")
+        shop = next(entry for entry in cleared.json()["lists"] if entry["id"] == "shop")
+        self.assertEqual(jobs["total"], 0)
+        self.assertEqual(shop["total"], 2)  # untouched
+
     def test_reorder_route(self):
         state = self.client.post("/api/plugins/ticklist/lists", json={"items": ["a", "b", "c"]}).json()
         ids = [item["id"] for item in state["lists"][0]["items"]]

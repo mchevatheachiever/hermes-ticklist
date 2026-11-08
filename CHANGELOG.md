@@ -2,6 +2,25 @@
 
 All notable changes to this plugin. Versions follow the `plugin.yaml` version.
 
+## 1.4.0 — 2026-11-08
+
+### Added
+- **A visible drag affordance** — `⠿` grip at the head of every row, always shown.
+  A row you can drag but can't tell is draggable is a row nobody drags.
+- **Pin a list** (📌) — pinned lists sort to the front of the tab strip and keep
+  their relative order; `pinned` lives in the store, so it survives restarts.
+- **Clear N ticked** — a button under the strip that empties the finished rows for
+  the list on screen (the `tick_clear done_only` tool existed; the pane never
+  exposed it), announced in the chat.
+- **Undo after deleting a list** — a 12-second bar that restores the list with its
+  rows and their tick states. The window closes on its own rather than offering a
+  stale restore later.
+
+### Fixed
+- The API payload didn't apply the pinned-first ordering, so the pane would have
+  shown pins doing nothing. Both `summary()` and the routes now share
+  `core.ordered_entries()`.
+
 ## 1.3.0 — 2026-11-08
 
 ### Added

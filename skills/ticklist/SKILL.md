@@ -1,7 +1,7 @@
 ---
 name: ticklist
 description: "Tick-list items in the Desktop pane; every tick reaches the agent."
-version: 1.3.0
+version: 1.4.0
 ---
 
 # TickList

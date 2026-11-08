@@ -47,6 +47,10 @@ class DonePayload(BaseModel):
     done: bool = True
 
 
+class PinPayload(BaseModel):
+    pinned: bool = True
+
+
 class OrderPayload(BaseModel):
     ids: list[str] = Field(default_factory=list)
 
@@ -66,6 +70,7 @@ def _summary(entry: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": entry["id"],
         "name": entry["name"],
+        "pinned": bool(entry.get("pinned")),
         "updated_at": entry["updated_at"],
         "done": sum(1 for item in entry["items"] if item["done"]),
         "total": len(entry["items"]),
@@ -86,7 +91,7 @@ def _state() -> dict[str, Any]:
     state = core.TickStore().read()
     active = state["active"]
     lists = []
-    for entry in state["lists"].values():
+    for entry in core.ordered_entries(state):
         view = _summary(entry)
         if entry["id"] == active:
             # The active list keeps its rows: a pane that has not reloaded yet
@@ -102,6 +107,17 @@ async def get_lists() -> dict[str, Any]:
         return _state()
     except OSError as exc:
         raise HTTPException(status_code=500, detail=f"store unreadable: {exc}") from exc
+
+
+@router.patch("/lists/{name}")
+async def set_pinned(name: str, payload: PinPayload) -> dict[str, Any]:
+    try:
+        core.TickStore().set_pinned(name, payload.pinned)
+    except core.TickError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"store unwritable: {exc}") from exc
+    return _state()
 
 
 @router.patch("/lists/{name}/order")

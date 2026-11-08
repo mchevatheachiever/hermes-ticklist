@@ -160,6 +160,16 @@ def normalise_items(raw: Any) -> list[dict[str, Any]]:
 # --------------------------------------------------------------------------- #
 
 
+def ordered_entries(state: dict[str, Any]) -> list[dict[str, Any]]:
+    """Pinned lists first, user order preserved inside each group.
+
+    `sorted` is stable, so this never reshuffles the tabs the user arranged.
+    """
+    entries = list(state["lists"].values())
+    entries.sort(key=lambda entry: not entry.get("pinned"))
+    return entries
+
+
 def _empty_state() -> dict[str, Any]:
     return {"version": SCHEMA_VERSION, "active": "", "lists": {}}
 
@@ -282,6 +292,7 @@ class TickStore:
             "id": key,
             "name": clean_name(entry.get("name"), default=key),
             "items": items[:MAX_ITEMS],
+            "pinned": bool(entry.get("pinned")),
             "created_at": float(entry.get("created_at") or 0) or time.time(),
             "updated_at": float(entry.get("updated_at") or 0) or time.time(),
         }
@@ -328,6 +339,7 @@ class TickStore:
                     "id": key,
                     "name": display,
                     "items": [],
+                    "pinned": False,
                     "created_at": now,
                     "updated_at": now,
                 }
@@ -407,6 +419,17 @@ class TickStore:
             self.write(state)
         return {"removed": removed, "list": current}
 
+    def set_pinned(self, name: str | None, pinned: bool) -> dict[str, Any]:
+        entry = self.get_list(name)
+        key = entry["id"]
+        with self._locked():
+            state = self.read()
+            current = state["lists"][key]
+            current["pinned"] = bool(pinned)
+            current["updated_at"] = time.time()
+            self.write(state)
+        return {"list": current}
+
     def reorder(self, name: str | None, ids: Iterable[Any]) -> dict[str, Any]:
         """Set the item order. The caller must name every item exactly once.
 
@@ -456,6 +479,7 @@ class TickStore:
 
     def summary(self) -> dict[str, Any]:
         state = self.read()
+        entries = ordered_entries(state)
         return {
             "active": state["active"],
             "lists": [
@@ -464,8 +488,9 @@ class TickStore:
                     "name": entry["name"],
                     "total": len(entry["items"]),
                     "done": sum(1 for item in entry["items"] if item["done"]),
+                    "pinned": bool(entry.get("pinned")),
                     "updated_at": entry["updated_at"],
                 }
-                for entry in state["lists"].values()
+                for entry in entries
             ],
         }

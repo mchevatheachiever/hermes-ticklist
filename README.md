@@ -69,14 +69,30 @@ which is what makes the agent see it.
 | **☐ remove from list on tick** | off by default, remembered across sessions; with it on a tick deletes the row instead of striking it through |
 | **✕** on a row | deletes that item |
 | **Add** box | type one item per line; Enter adds |
-| **Drag a row** | reorders it — within its own group (unticked or ticked), written straight to the store |
+| **⠿ grip** | drag a row by it to reorder — within its own group (unticked or ticked), written straight to the store |
+| **📌** | pins the list to the front of the strip; pinned lists sort ahead of the rest, in the order you made them |
 | **⤓** | export menu: Text, Markdown, CSV, JSON, or copy to the clipboard |
-| **× on the active tab** | deletes that whole list — asks first, then posts `Deleted list — <name> (N items)` to the chat |
+| **Clear N ticked** | appears once something is ticked — empties the finished rows in one go, and says so in the chat |
+| **× on the active tab** | deletes that whole list — asks first, then posts `Deleted list — <name> (N items)`; an **Undo** bar stays for 12 seconds |
 | **Tab ✕** | closes the pane; `Ctrl+K → "TickList: show checklist"` re-opens it by the same id, restoring the list you were on |
 
 Ticked rows collect at the bottom: unticked first, ticked gathered below, order
 preserved within each group — a checklist is read for what's left, but a row must
 not jump out from under the cursor.
+
+## Borrowed from Google Keep, deliberately
+
+| Keep feature | Here |
+|---|---|
+| Drag to reorder | `⠿` grip on every row; drops stay inside a row's own group |
+| Pin a note to the top | 📌 sorts a list to the front of the tab strip |
+| "Delete checked items" | **Clear N ticked**, right under the strip |
+| Undo after delete | a 12-second **Undo** bar after deleting a list, which restores the rows with their tick state |
+| Search across notes | **not built** — see below |
+
+Search is the one I left out: with the strip wrapping and scrolling, finding a list
+is a click, and a search that has to say whether it matches titles or item text is a
+worse answer than a pin. Add it if the tab strip ever gets past ~40 lists.
 
 ## Export
 
