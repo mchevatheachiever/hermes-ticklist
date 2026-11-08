@@ -6,6 +6,12 @@ Hermes' built-in `todo_list` is agent-authored and user-read. TickList is the in
 checkboxes in a desktop pane, and every tick is posted into the conversation as it happens,
 so the model knows something is finished without you saying it.
 
+![The TickList pane beside the chat](demo/screenshot.png)
+
+**Demo:** [`demo/ticklist-demo.mp4`](demo/ticklist-demo.mp4) — 70 seconds, silent, recorded in
+the Desktop app: a list is requested, ticks land in the chat as they happen, then tabs, pin,
+export, drag-reorder and the announce toggle in one pass. The screenshot above is a frame from it.
+
 - Source: https://github.com/mchevatheachiever/hermes-ticklist
 - License: MIT
 
@@ -58,24 +64,56 @@ makes the agent see it.
 
 | Control | What it does |
 |---|---|
-| **Tabs** | one per list, showing `done/total`; they wrap, and scroll past five rows |
-| **＋** | create a new list — type a name, Enter. It opens empty and becomes active (if the name already exists it switches to that list instead) |
-| **☑** (status bar) | opens or closes this pane's tab; dimmed when closed. The whole side panel is collapsed by the terminal pill, which takes this pane with it |
-| **Drag a tab** | reorders the strip; drop on the left or right half of a tab to land before or after it. Pinned tabs reorder among themselves. Focused, **←** / **→** also moves it |
-| **📌 on a tab** | a pinned list sits at the front of the strip |
+| **Tabs** | one per list, showing `done/total`; they wrap, and scroll past five rows. The tab you were last on is remembered |
+| **＋** | create a new list — type a name, Enter. It opens empty and becomes active; if the name already exists it switches to that list instead |
+| **📌 header button** | pins the list you're on. Pinned lists sort to the front of the strip and show a 📌 on their tab; pinned tabs reorder among themselves |
+| **× on the tab** | deletes that list. Asks first, then offers undo for 12 seconds |
+| **Drag a tab** | reorders the strip — drop on the left or right half of a tab to land before or after it |
 | **Checkbox** | ticks or unticks the row and announces it in the chat |
-| **⠿ handle** | drag to reorder a row, or focus it and press ↑ / ↓ |
+| **⠿ grip** | drag to reorder a row |
+| **✕ on a row** | removes that one item, announced as `Removed — <item>`, with undo |
+| **Add bar** | type and press Enter. Multi-line paste adds one item per line, in one request |
+| **Clear N ticked** | appears once something is ticked; removes the finished rows, with undo |
 | **⤓** | export: text, Markdown, CSV, JSON, or copy to the clipboard |
-| **📌** (header) | pin or unpin the list you're on |
-| **Clear N ticked** | appears once something is ticked; removes the finished rows |
-| **Undo** | a 12-second bar after deleting a list, clearing ticked rows, or removing a row |
-| **× on the tab** | deletes that list, after asking |
+| **Undo** | a 12-second bar after deleting a list, clearing ticked rows, removing a row, or a tick that removes its own row |
 | **▾** | collapses the pane to its header |
-| **💬 / 🔇** | whether ticks are posted to the chat |
-| **☐ remove from list on tick** | off by default; with it on, a tick deletes the row instead of striking it through |
+| **💬 / 🔇** | whether ticks are posted to the chat. On by default, per pane session |
+| **☐ remove from list on tick** | off by default; with it on, a tick deletes the row instead of striking it through. The choice is remembered |
+| **☑ status bar** | opens or closes this pane's tab; dimmed when closed. The whole side panel is collapsed by the terminal pill, which takes this pane with it |
 
 Rows sit unticked-first, with ticked ones collected at the bottom and your own order
 preserved inside each group.
+
+### Keyboard
+
+| Where | Keys | What it does |
+|---|---|---|
+| Add bar | **Enter** | add what you typed |
+| Add bar | **Shift+Enter** | new line, so one entry can hold several items |
+| New-list row | **Enter** / **Esc** | create / cancel |
+| ⠿ grip, focused | **↑** / **↓** | move the row up or down |
+| Tab, focused | **←** / **→** | move the tab left or right |
+| Tab, focused | **Enter** / **Space** | switch to that list |
+| Export menu | **Esc** | close it |
+
+## What the agent sees
+
+Announcing is on by default. Each of these is posted as a user turn, so the model reads it
+like anything else you type:
+
+| You did | Chat gets |
+|---|---|
+| ticked a row | `Ticked — <item>` |
+| unticked a row | `Unticked — <item>` |
+| added from the bar | `Added — <item>`, or `Added N items` for a multi-line paste |
+| removed a row | `Removed — <item>` |
+| ticked with remove-on-tick on | `Ticked and removed — <item>` |
+| cleared the finished rows | `Cleared N ticked from <list>` |
+| deleted a list | `Deleted list — <name> (N items)` |
+| hit undo | `Restored — <name>` |
+
+Toggle **🔇** when you want to tick things quietly — the list still changes, the agent just
+isn't told.
 
 ## Export
 

@@ -2,7 +2,22 @@
 
 All notable changes to this plugin. Versions follow the `plugin.yaml` version.
 
-## 1.8.5 — 2026-11-08
+## 1.8.6 — 2026-11-08
+
+### Docs
+- **The README now documents every control, key and announcement** rather than most of them.
+  Added: the keyboard table (add bar Enter / Shift+Enter, grip ↑↓, tab ←→, tab Enter/Space,
+  Esc on the export menu), a table of exactly what the agent receives for each action, the
+  row ✕, the tab ✕ confirm-then-undo, the status-bar chip, and that the tab you were last on
+  is remembered.
+- **Two claims corrected.** The pin button is in the header (a 📌 on the tab only *marks* a
+  pinned list), and the announce toggle is per pane session, not persisted — the README now
+  says so instead of implying otherwise.
+- **Demo added at the top**: `demo/ticklist-demo.mp4` (70s, silent) with a frame as the
+  README image. The audio is stripped deliberately — the video posted to X uses music, and
+  the repository ships none.
+
+
 
 ### Fixed
 - **The remembered "closed" state could end up the opposite of the user's last action.**
