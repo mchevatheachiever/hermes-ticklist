@@ -121,7 +121,7 @@ written outside your Downloads folder.
 |---|---|
 | `tick_add` | Add items; keeps existing, skips duplicates |
 | `tick_set` | Tick or untick by id or text (exact, then unique substring) |
-| `tick_list` | Read a list with done/total |
+| `tick_list` | Read a list with done/total, plus an inventory of every list (name, pinned, done/total, which is active) |
 | `tick_remove` | Delete an item |
 | `tick_clear` | Empty a list, or `done_only: true` |
 | `tick_delete_list` | Delete an entire list — not the same as emptying it |
@@ -221,6 +221,9 @@ list fetched on demand.
 - **No network calls.** Nothing leaves the machine except the tick notices you see
   in the chat.
 - **Local state only**: `plugin-data/ticklist/lists.json`.
+- **Pinning is not announced.** It's a view preference — it changes nothing about the
+  list — and every chat post costs a model turn. The agent reads pin state from
+  `tick_list` instead, which returns every list with its `pinned` flag.
 - **Chat hand-off**: a tick posts `Ticked — <item>` into the active composer. The 💬
   toggle turns it off; nothing else in the plugin writes to the chat.
 - **Item text is sent to your model provider.** That post is a real user turn, so

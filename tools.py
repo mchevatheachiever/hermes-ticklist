@@ -15,11 +15,31 @@ def _store() -> core.TickStore:
 
 def _payload(entry: dict[str, Any], **extra: Any) -> dict[str, Any]:
     done = sum(1 for item in entry["items"] if item["done"])
+    # The agent's only view of the store: without this it cannot answer "what
+    # lists do I have", "which are pinned", or which tab the user is looking at.
+    # Pinning and tab order are UI state the model has no other way to read, and
+    # they are not announced in chat (they change nothing the agent acts on).
+    try:
+        summary = _store().summary()
+    except OSError:  # pragma: no cover - store unreadable, tools already reported it
+        summary = {"lists": [], "active": entry["id"]}
+    lists = [
+        {
+            "name": meta["name"],
+            "pinned": meta["pinned"],
+            "done": meta["done"],
+            "total": meta["total"],
+            "active": meta["id"] == summary["active"],
+        }
+        for meta in summary["lists"]
+    ]
     return {
         "success": True,
         "list": entry["name"],
+        "pinned": bool(entry.get("pinned")),
         "total": len(entry["items"]),
         "done": done,
+        "lists": lists,
         "items": [
             {"id": item["id"], "text": item["text"], "done": item["done"]} for item in entry["items"]
         ],

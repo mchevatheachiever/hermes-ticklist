@@ -2,6 +2,19 @@
 
 All notable changes to this plugin. Versions follow the `plugin.yaml` version.
 
+## 1.7.1 — 2026-11-08
+
+### Added
+- `tick_list` (and every tool payload) now returns `lists`: each list's name,
+  `pinned` flag, done/total and whether it is the active one, in tab order. Until
+  now the agent had no way to see pin state or to answer "what lists do I have" —
+  the tools only ever returned the one list you asked for.
+
+### Not changed, deliberately
+- **Pinning does not post to the chat.** It is a view preference, not a change to
+  the list's contents, and each post is a model turn. The state is readable
+  through `tick_list` instead.
+
 ## 1.7.0 — 2026-11-08
 
 ### Added

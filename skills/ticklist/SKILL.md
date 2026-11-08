@@ -1,7 +1,7 @@
 ---
 name: ticklist
 description: "Tick-list items in the Desktop pane; every tick reaches the agent."
-version: 1.7.0
+version: 1.7.1
 ---
 
 # TickList
@@ -26,7 +26,7 @@ Do **not** use it as scratch memory for your own multi-step work — that is wha
 |---|---|
 | `tick_add` | Add items (strings). Existing items are kept, duplicates skipped. |
 | `tick_set` | Tick/untick by id or by text. Exact match first, then a unique substring. |
-| `tick_list` | Read a list with done/total counts. |
+| `tick_list` | Read a list with done/total counts, plus `lists` — every list's name, pinned flag, done/total and which one is active. |
 | `tick_remove` | Delete an item (not the same as unticking). |
 | `tick_clear` | Empty a list, or `done_only: true` to clear the finished ones. |
 | `tick_delete_list` | Delete a list and everything on it. Not the same as `tick_clear`. |

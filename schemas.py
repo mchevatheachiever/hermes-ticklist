@@ -47,8 +47,10 @@ SET = {
 LIST = {
     "description": (
         "Read a checklist — every item, whether it is ticked, and a done/total count. With no "
-        "argument it returns the most recent list. Returns a `display` field to copy into your "
-        "reply so the user sees the list on text-only surfaces."
+        "argument it returns the most recent list. Also returns `lists`: every list's name, "
+        "done/total, whether it is pinned, and which one is active — that is how you answer "
+        "'what lists do I have' or 'which are pinned'. Returns a `display` field to copy into "
+        "your reply so the user sees the list on text-only surfaces."
     ),
     "parameters": {
         "type": "object",
