@@ -12,7 +12,7 @@
 
 import { Button, cn, haptic, host, useQuery } from '@hermes/plugin-sdk'
 import { jsx, jsxs } from 'react/jsx-runtime'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 const ID = 'ticklist'
 
