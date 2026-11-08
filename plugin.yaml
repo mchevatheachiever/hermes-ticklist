@@ -1,5 +1,5 @@
 name: ticklist
-version: 1.8.4
+version: 1.8.5
 description: "A checklist you can actually tick: checkboxes in the Desktop pane, and every tick is announced to the agent as it happens."
 author: mchevatheachiever
 license: MIT

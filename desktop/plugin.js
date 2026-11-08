@@ -1162,6 +1162,14 @@ export default {
     // this desktop build (verified from the running app), so they can't be the
     // way back — and a plain ctx.register('panes') never re-admits a pane that
     // was closed, which is why the earlier disposer version failed.
+    const remember = (closed) => {
+      try {
+        Promise.resolve(ctx.storage.set('paneClosed', closed)).catch(() => {})
+      } catch {
+        /* no storage: closing just won't stick */
+      }
+    }
+
     const open = () => {
       if (typeof host.openWorkspace !== 'function') {
         return false
@@ -1198,6 +1206,10 @@ export default {
               }
             : () => setPaneOpen(null)
         )
+        // Every open path — chip, palette, boot — clears the remembered close.
+        // Only `onClose` sets it, and the app also calls a pane's closer when a
+        // layout preset rests it, so a stale `true` must heal on next visible.
+        remember(false)
         return true
       } catch {
         return false
@@ -1205,14 +1217,6 @@ export default {
     }
 
     // The chip toggles, the way the terminal's status-bar button does.
-    const remember = (closed) => {
-      try {
-        Promise.resolve(ctx.storage.set('paneClosed', closed)).catch(() => {})
-      } catch {
-        /* no storage: closing just won't stick */
-      }
-    }
-
     const toggle = () => {
       if (typeof pane.dispose === 'function') {
         pane.dispose()
@@ -1220,9 +1224,7 @@ export default {
         remember(true)
         return true
       }
-      const opened = open()
-      if (opened) remember(false)
-      return opened
+      return open()
     }
 
     // A pane the user closed must stay closed across a reload — otherwise the

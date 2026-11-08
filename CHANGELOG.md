@@ -2,6 +2,17 @@
 
 All notable changes to this plugin. Versions follow the `plugin.yaml` version.
 
+## 1.8.5 — 2026-11-08
+
+### Fixed
+- **The remembered "closed" state could end up the opposite of the user's last action.**
+  Two paths caused it: opening from the command palette never cleared the flag (only the
+  chip's toggle did), and the app calls a pane's closer for reasons that aren't the user
+  closing the tab — applying a layout preset that "rests" a pane goes through the same
+  `onClose`. A pane could therefore come back shut after a restart, having last been opened.
+  Any successful open now clears the flag, so a preset-induced close heals the moment the
+  pane is next visible.
+
 ## 1.8.4 — 2026-11-08
 
 ### Fixed
