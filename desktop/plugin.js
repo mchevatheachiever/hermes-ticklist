@@ -124,12 +124,32 @@ function TickPane({ ctx }) {
     state.lists.find((entry) => entry.id === state.active) ||
     state.lists[0] ||
     null
+
+  // The poll above carries names and counts only. Rows come from the one list
+  // being shown, so a store full of long lists no longer ships on every tick.
+  const listId = list ? list.id : ''
+  const detail = useQuery({
+    queryKey: ['ticklist', 'list', listId],
+    queryFn: () =>
+      listId
+        ? ctx.rest(`/lists/${encodeURIComponent(listId)}`)
+        : Promise.resolve({ ok: true, list: null }),
+    enabled: Boolean(listId),
+    refetchInterval: 3000,
+    retry: 1
+  })
+  const fresh = detail.data && detail.data.list && detail.data.list.id === listId ? detail.data.list : null
+  const rows = (fresh && fresh.items) || (list && list.items) || []
+
   // unticked first, ticked gathered at the bottom (stable within each group)
-  const items = list
-    ? [...list.items].sort((a, b) => Number(a.done) - Number(b.done))
-    : []
+  const items = [...rows].sort((a, b) => Number(a.done) - Number(b.done))
   const done = list ? list.done : 0
   const total = list ? list.total : 0
+
+  const refresh = useCallback(() => {
+    query.refetch()
+    detail.refetch()
+  }, [query, detail])
 
   const post = useCallback(
     (text) => {
@@ -151,7 +171,7 @@ function TickPane({ ctx }) {
       try {
         if (!item.done && removeOnTick) {
           await ctx.rest(`/items/${encodeURIComponent(item.id)}`, { method: 'DELETE' })
-          query.refetch()
+          refresh()
           post(`Ticked and removed — ${item.text}`)
           return
         }
@@ -159,26 +179,26 @@ function TickPane({ ctx }) {
           method: 'PATCH',
           body: { done: !item.done }
         })
-        query.refetch()
+        refresh()
         post(`${item.done ? 'Unticked' : 'Ticked'} — ${item.text}`)
       } catch (err) {
         setError(`could not save: ${err && err.message ? err.message : err}`)
       }
     },
-    [ctx, post, query, removeOnTick]
+    [ctx, post, refresh, removeOnTick]
   )
 
   const remove = useCallback(
     async (item) => {
       try {
         await ctx.rest(`/items/${encodeURIComponent(item.id)}`, { method: 'DELETE' })
-        query.refetch()
+        refresh()
         post(`Removed — ${item.text}`)
       } catch (err) {
         setError(`could not remove: ${err && err.message ? err.message : err}`)
       }
     },
-    [ctx, post, query]
+    [ctx, post, refresh]
   )
 
   const add = useCallback(async () => {
@@ -195,12 +215,12 @@ function TickPane({ ctx }) {
       setDraft('')
       setError('')
       haptic('tap')
-      query.refetch()
+      refresh()
       post(lines.length === 1 ? `Added — ${lines[0]}` : `Added ${lines.length} items`)
     } catch (err) {
       setError(`could not add: ${err && err.message ? err.message : err}`)
     }
-  }, [ctx, draft, list, post, query])
+  }, [ctx, draft, list, post, refresh])
 
   // ---- header: collapse, close, list switcher ---------------------------- #
 

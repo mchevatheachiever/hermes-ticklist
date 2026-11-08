@@ -92,6 +92,32 @@ shop — 1/3 done
   `/api/plugins/ticklist/` behind the Hermes dashboard's own access control; the
   plugin adds no auth of its own and should not be exposed beyond it.
 
+## API
+
+The pane polls cheap and fetches detail on demand:
+
+| Route | Returns | Polled |
+|---|---|---|
+| `GET /lists` | every list as `{id, name, done, total}` — plus the rows of the active list, so a pane that hasn't reloaded still paints | every 3s |
+| `GET /lists/{name}` | one list with its rows | every 3s, for the list on screen |
+| `POST /lists`, `PATCH/DELETE /items/{id}`, `POST /clear` | full state after the write | on action |
+| `GET /health` | `{ok, lists}` — never the exception text, which carries the store path | — |
+
+Measured on a real 22-list / 303-item store: **19.8 KiB → 2.6 KiB per poll**. At the
+documented ceiling (50 lists × 2,000 items) the old shape shipped **7.6 MiB every
+three seconds**; the split brings it to **0.18 MiB**, with a single list fetched on
+demand.
+
+## Known limits
+
+- **No row virtualisation.** A 2,000-item list mounts 2,000 rows. Fine in the
+  hundreds, gooey at the ceiling. Fix (if anyone actually hits it): window the
+  list to the visible range, or cap the render with a "show all" toggle.
+- **`requires_hermes: >=0.21.5`, but the chip needs a desktop with
+  `host.openWorkspace`.** Older desktops are feature-detected and fall back to a
+  plain right-docked pane — everything still works, the status-bar chip just isn't
+  there, and the pane returns from the zone tab strip instead.
+
 ## Development
 
 ```bash

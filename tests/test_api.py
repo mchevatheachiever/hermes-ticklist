@@ -95,20 +95,41 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(response.status_code, 404)
 
 
-if __name__ == "__main__":
-    unittest.main(verbosity=2)
 
     def test_health_does_not_leak_the_store_path(self):
-        api = load_api()
-        original = api.core.TickStore.read
+        # Driven through the client: `health()` is async, so calling it directly
+        # hands back a coroutine and the assertion passes on nothing.
+        original = self.api.core.TickStore.read
 
         def boom(self):
             raise OSError("/home/someone/.hermes/plugin-data/ticklist/lists.json")
 
-        api.core.TickStore.read = boom
+        self.api.core.TickStore.read = boom
         try:
-            response = api.health()
+            body = self.client.get("/api/plugins/ticklist/health").json()
         finally:
-            api.core.TickStore.read = original
-        self.assertFalse(response["ok"])
-        self.assertNotIn("/home", response["error"])
+            self.api.core.TickStore.read = original
+        self.assertFalse(body["ok"])
+        self.assertNotIn("/home", body["error"])
+
+    def test_inactive_lists_ship_without_rows(self):
+        self.client.post("/api/plugins/ticklist/lists", json={"items": ["a"], "list": "one"})
+        self.client.post("/api/plugins/ticklist/lists", json={"items": ["b", "c"], "list": "two"})
+        body = self.client.get("/api/plugins/ticklist/lists").json()
+        by_name = {entry["id"]: entry for entry in body["lists"]}
+        self.assertNotIn("items", by_name["one"])
+        self.assertIn("items", by_name["two"])
+        self.assertEqual(by_name["one"]["total"], 1)
+
+    def test_single_list_route_returns_rows(self):
+        self.client.post("/api/plugins/ticklist/lists", json={"items": ["a", "b"], "list": "shop"})
+        self.client.post("/api/plugins/ticklist/lists", json={"items": ["c"], "list": "other"})
+        body = self.client.get("/api/plugins/ticklist/lists/shop").json()
+        self.assertEqual(body["list"]["id"], "shop")
+        self.assertEqual(len(body["list"]["items"]), 2)
+        missing = self.client.get("/api/plugins/ticklist/lists/nope")
+        self.assertEqual(missing.status_code, 404)
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)

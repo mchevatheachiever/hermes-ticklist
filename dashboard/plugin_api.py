@@ -54,17 +54,25 @@ def _entry(list_name: str | None) -> dict[str, Any]:
     return core.TickStore().get_list(list_name)
 
 
-def _view(entry: dict[str, Any]) -> dict[str, Any]:
+def _items(entry: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
+        {"id": item["id"], "text": item["text"], "done": item["done"]} for item in entry["items"]
+    ]
+
+
+def _summary(entry: dict[str, Any]) -> dict[str, Any]:
+    """Everything the tab strip needs and nothing it doesn't — no item rows."""
     return {
         "id": entry["id"],
         "name": entry["name"],
         "updated_at": entry["updated_at"],
-        "items": [
-            {"id": item["id"], "text": item["text"], "done": item["done"]} for item in entry["items"]
-        ],
         "done": sum(1 for item in entry["items"] if item["done"]),
         "total": len(entry["items"]),
     }
+
+
+def _view(entry: dict[str, Any]) -> dict[str, Any]:
+    return {**_summary(entry), "items": _items(entry)}
 
 
 def _state() -> dict[str, Any]:
@@ -75,11 +83,16 @@ def _state() -> dict[str, Any]:
     parses per request, every 3 seconds.
     """
     state = core.TickStore().read()
-    return {
-        "ok": True,
-        "active": state["active"],
-        "lists": [_view(entry) for entry in state["lists"].values()],
-    }
+    active = state["active"]
+    lists = []
+    for entry in state["lists"].values():
+        view = _summary(entry)
+        if entry["id"] == active:
+            # The active list keeps its rows: a pane that has not reloaded yet
+            # still renders, and the first paint has something to draw.
+            view["items"] = _items(entry)
+        lists.append(view)
+    return {"ok": True, "active": active, "lists": lists}
 
 
 @router.get("/lists")
@@ -88,6 +101,18 @@ async def get_lists() -> dict[str, Any]:
         return _state()
     except OSError as exc:
         raise HTTPException(status_code=500, detail=f"store unreadable: {exc}") from exc
+
+
+@router.get("/lists/{name}")
+async def get_list(name: str) -> dict[str, Any]:
+    """One list with its rows — what the pane fetches on a tab switch."""
+    try:
+        entry = core.TickStore().get_list(name)
+    except core.TickError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"store unreadable: {exc}") from exc
+    return {"ok": True, "list": _view(entry)}
 
 
 @router.post("/lists")
