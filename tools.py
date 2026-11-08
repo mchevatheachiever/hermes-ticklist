@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-import logging
 from typing import Any
 
 from tools.registry import tool_error, tool_result
 
 from . import art, core
-
-logger = logging.getLogger(__name__)
 
 
 def _store() -> core.TickStore:

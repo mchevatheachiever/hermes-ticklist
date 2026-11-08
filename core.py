@@ -17,7 +17,7 @@ import secrets
 import tempfile
 import time
 from contextlib import contextmanager
-from typing import Any, Iterable, Iterator, Sequence
+from typing import Any, Iterable, Iterator
 
 try:  # POSIX advisory locking; degrades to no lock on Windows.
     import fcntl

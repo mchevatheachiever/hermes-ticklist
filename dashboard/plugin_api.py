@@ -50,10 +50,6 @@ class ClearPayload(BaseModel):
     done_only: bool = False
 
 
-def _entry(list_name: str | None) -> dict[str, Any]:
-    return core.TickStore().get_list(list_name)
-
-
 def _items(entry: dict[str, Any]) -> list[dict[str, Any]]:
     return [
         {"id": item["id"], "text": item["text"], "done": item["done"]} for item in entry["items"]

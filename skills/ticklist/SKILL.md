@@ -1,7 +1,7 @@
 ---
 name: ticklist
 description: "Tick-list items in the Desktop pane; every tick reaches the agent."
-version: 1.0.0
+version: 1.1.0
 ---
 
 # TickList
@@ -41,9 +41,13 @@ which one, or pass the item id (ids come back in `tick_list`).
 
 ## The pane
 
-Checkboxes, add box, per-list tabs, a 💬 toggle that decides whether a tick is
-posted into the chat, a chevron to collapse it to a header, and a ✕ that closes
-it — reopen with ⌘K → **TickList: show / hide checklist**. No trip to Settings.
+Checkboxes, an add box, a scrolling strip of per-list tabs with `done/total`, a 💬
+toggle that decides whether a tick is posted into the chat, a chevron that collapses
+the pane to its header, and a checkbox for **remove from list on tick** (off by
+default, remembered). The pane lives as a tab beside TERMINAL; if it is closed,
+`Ctrl+K → "TickList: show checklist"` reopens it on the list the user was reading.
+
+Unticked rows sit above ticked ones in both the pane and the text checklist.
 
 Ticking posts `Ticked — <item>` (or `Unticked — …`) into the conversation, which
 starts a turn: that is how you see it. It also means each tick costs a model

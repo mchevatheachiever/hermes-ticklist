@@ -1,8 +1,8 @@
 """Terminal rendering for ticklist — the text-only half.
 
-Same asymmetry as the wheel: the Desktop pane draws checkboxes, everything else
-gets this. Every line starts at column 0 because models re-type tool output and
-leading whitespace is the first casualty.
+The Desktop pane draws checkboxes; everything else gets this. Every line starts at
+column 0 because models re-type tool output and leading whitespace is the first
+casualty.
 """
 
 from __future__ import annotations

@@ -4,20 +4,36 @@ A checklist for Hermes that works in the direction that's usually missing: **you
 tick, the agent is told.**
 
 Hermes already has a `todo_list` — but only the agent writes it, and you read it.
-TickList is the other way round: checkboxes in the Desktop pane, and every tick
-or untick is posted into the conversation as it happens, so the model knows the
-fence is actually finished without you typing it out.
+TickList is the other way round: checkboxes in the Desktop pane, and every tick or
+untick is posted into the conversation as it happens, so the model knows the fence
+is actually finished without you typing it out.
+
+- Source: https://github.com/mchevatheachiever/hermes-ticklist
+- License: MIT
+- Status: not in the plugin catalog yet — install from the repo (below)
+
+## Requirements
+
+| | |
+|---|---|
+| Hermes | `>=0.21.5` (declared in `plugin.yaml`) |
+| Python | 3.10+ for the agent half; stdlib only, no dependencies |
+| Desktop app | any. The docked-sibling-tab behaviour uses `host.openWorkspace`; older desktops are feature-detected and fall back to a plain right-docked pane |
+
+No network calls, no credentials, no environment variables, no telemetry.
 
 ## Install
 
+Until the catalog entry lands, install from the repository:
+
 ```bash
-hermes plugins install ticklist
+hermes plugins install mchevatheachiever/hermes-ticklist
 ```
 
-Enable it in **Settings ▸ Plugins**. The **ticks** pane opens in the terminal
-pane's zone as a sibling tab and stays there — switch to it like any other tab.
-If you close it, `Ctrl+K → "TickList: show checklist"` brings it back, on the
-list you were last reading.
+Then enable it in **Settings ▸ Plugins**. The **ticks** pane opens in the terminal
+pane's zone as a sibling tab and stays there — switch to it like any other tab. If
+you close it, `Ctrl+K → "TickList: show checklist"` brings it back, on the list you
+were last reading.
 
 ## Use
 
@@ -32,14 +48,22 @@ Ask Hermes:
 or type straight into the pane. Ticking posts `Ticked — <item>` into the chat,
 which is what makes the agent see it.
 
-## Closing, collapsing
+## The pane
 
-- **Tab ✕** closes the pane; `Ctrl+K → "TickList: show checklist"` re-opens it
-  by the same id, restoring the list you were on.
-- **▾** collapses it to a single header line showing `done/total`.
-- **💬** decides whether ticks are posted to the chat (each post is a model turn).
-- **☐ remove from list on tick** — off by default, remembered across sessions;
-  with it on, a tick deletes the row instead of leaving it struck through.
+| Control | Does |
+|---|---|
+| **Tabs** along the top | one per list, with `done/total`; they wrap and scroll vertically past five rows |
+| **Checkbox** | ticks / unticks that row and posts `Ticked — <item>` into the conversation |
+| **▾** | collapses the pane to a single header line showing `done/total` |
+| **💬 / 🔇** | whether ticks are posted to the chat (each post is a model turn) |
+| **☐ remove from list on tick** | off by default, remembered across sessions; with it on a tick deletes the row instead of striking it through |
+| **✕** on a row | deletes that item |
+| **Add** box | type one item per line; Enter adds |
+| **Tab ✕** | closes the pane; `Ctrl+K → "TickList: show checklist"` re-opens it by the same id, restoring the list you were on |
+
+Tickled rows collect at the bottom: unticked first, ticked gathered below, order
+preserved within each group — a checklist is read for what's left, but a row must
+not jump out from under the cursor.
 
 ## Tools
 
@@ -51,94 +75,34 @@ which is what makes the agent see it.
 | `tick_remove` | Delete an item |
 | `tick_clear` | Empty a list, or `done_only: true` |
 
-Plus a bundled skill (`ticklist:ticklist`) and `/tick [list]`, which prints the
-list without spending a model turn.
+Plus a bundled skill (`ticklist:ticklist`) and `/tick [list]`, which prints the list
+without spending a model turn.
 
-Text-only surfaces get a plain checklist, every line at column 0:
+Text-only surfaces get a plain checklist, every line at column 0, unticked first:
 
 ```
 shop — 1/3 done
 ██████····· 33%
 
-[x] screws
 [ ] brackets
 [ ] paint
+[x] screws
 ```
 
 ## How it works
 
 - **One store, two writers.** The pane and the tools share
-  `<hermes home>/plugin-data/ticklist/lists.json`, written atomically under an
-  advisory lock, so a click and a `tick_set` are the same operation.
-- **Ambiguity is refused, not guessed.** A substring matching two items raises
-  and lists the candidates; pass the id instead.
-- **Duplicate texts collapse** onto the first occurrence, case-insensitively —
-  two identical rows would drift apart.
-- **Uppercase is a display choice** on the wheel's side; here the item text is
-  shown exactly as typed, because a checklist is often pasted verbatim.
-
-## Disclosure
-
-- **No network calls.** Nothing leaves the machine except the tick notices you
-  see in the chat.
-- **Local state only**: `plugin-data/ticklist/lists.json` (max 2,000 items per
-  list, 50 lists).
-- **No credentials**, no environment variables, no telemetry.
-- **Chat hand-off**: a tick posts `Ticked — <item>` into the active composer.
-  The 💬 toggle turns it off; nothing else in the plugin writes to the chat.
-- **Item text is sent to your model provider.** That post is a real user turn, so
-  the item name goes to whichever provider serves the session and is stored in the
-  session transcript. Don't put secrets on a list with announcing on.
-- **API authorisation is the host's, not the plugin's.** Routes are mounted at
-  `/api/plugins/ticklist/` behind the Hermes dashboard's own access control; the
-  plugin adds no auth of its own and should not be exposed beyond it.
-
-## API
-
-The pane polls cheap and fetches detail on demand:
-
-| Route | Returns | Polled |
-|---|---|---|
-| `GET /lists` | every list as `{id, name, done, total}` — plus the rows of the active list, so a pane that hasn't reloaded still paints | every 3s |
-| `GET /lists/{name}` | one list with its rows | every 3s, for the list on screen |
-| `POST /lists`, `PATCH/DELETE /items/{id}`, `POST /clear` | full state after the write | on action |
-| `GET /health` | `{ok, lists}` — never the exception text, which carries the store path | — |
-
-Measured on a real 22-list / 303-item store: **19.8 KiB → 2.6 KiB per poll**. At the
-documented ceiling (50 lists × 2,000 items) the old shape shipped **7.6 MiB every
-three seconds**; the split brings it to **0.18 MiB**, with a single list fetched on
-demand.
-
-## Known limits
-
-- **No row virtualisation.** A 2,000-item list mounts 2,000 rows. Fine in the
-  hundreds, gooey at the ceiling. Fix (if anyone actually hits it): window the
-  list to the visible range, or cap the render with a "show all" toggle.
-- **`requires_hermes: >=0.21.5`, but the chip needs a desktop with
-  `host.openWorkspace`.** Older desktops are feature-detected and fall back to a
-  plain right-docked pane — everything still works, the status-bar chip just isn't
-  there, and the pane returns from the zone tab strip instead.
-
-## Development
-
-```bash
-python3 scripts/check_setters.py desktop/plugin.js   # dead-useState guard
-node --check desktop/plugin.js
-python3 -m unittest tests.test_core                  # core + art, stdlib only
-hermes plugins validate . --install-deps             # catalog admission gate
-```
-
-API tests need FastAPI (the Hermes runtime venv has it). Run them from inside
-`tests/` — a `PYTHONPATH` entry for the Hermes checkout shadows the name `tests`
-with its own directory and the module is then "not found":
-
-```bash
-cd tests && "$HERMES_VENV/bin/python" -m unittest test_api
-```
-
-## License
-
-MIT
+  `<hermes home>/plugin-data/ticklist/lists.json`, written atomically (temp file →
+  `fsync` → `os.replace`) under an advisory lock, so a click and a `tick_set` are
+  the same operation and cannot truncate each other.
+- **Bounded input**: 240 chars per item, 2,000 items per list, 50 lists, control
+  characters stripped.
+- **Ambiguity is refused, not guessed.** A substring matching two items raises and
+  lists the candidates; pass the id instead.
+- **Duplicate texts collapse** onto the first occurrence, case-insensitively — two
+  identical rows would drift apart.
+- **Item text is shown exactly as typed**, because a checklist is often pasted
+  verbatim.
 
 ## Desktop pane
 
@@ -155,12 +119,79 @@ host.openWorkspace('ticklist', {
 ```
 
 - `pos: 'center'` stacks into the anchor's group (a tab beside TERMINAL);
-  `pos: 'right'` would split a new zone beside it. `enforce` replays it at boot.
-- Re-opening the same id fronts the existing tab. The list you were reading is
-  kept in `ctx.storage`, so a reopen lands where you left off rather than snapping
-  to the backend's "active" list.
-- List selection lives in a scrollable tab strip along the top, one tab per list
-  with `done/total`.
+  `pos: 'right'` would split a new zone beside it. `enforce` replays the placement
+  at boot.
+- Re-opening the same id fronts the existing tab. The list you were reading is kept
+  in `ctx.storage`, so a reopen lands where you left off rather than snapping to the
+  backend's "active" list — which is whichever list was last written to.
+- There is deliberately **no status-bar chip**: the pane is a permanent tab, so a
+  chip would be a second door for something already one click away.
 
 Reload plugins with **Ctrl+K → "Reload window"** (there is no "Reload desktop
-plugins" command).
+plugins" command in v0.23.x). The desktop half hot-reloads when `plugin.js` changes;
+the Python half needs a gateway restart.
+
+## API
+
+The pane polls cheap and fetches detail on demand:
+
+| Route | Returns | Polled |
+|---|---|---|
+| `GET /lists` | every list as `{id, name, done, total}` — plus the rows of the active list, so a pane that hasn't reloaded still paints | every 3s |
+| `GET /lists/{name}` | one list with its rows | every 3s, for the list on screen |
+| `POST /lists`, `PATCH/DELETE /items/{id}`, `POST /clear` | full state after the write | on action |
+| `GET /health` | `{ok, lists}` — never the exception text, which carries the store path | — |
+
+Item writes take `?list=<name>`. omitting it falls back to the active list, which is
+**not** the tab on screen — send it explicitly (the pane does).
+
+Measured on a real 22-list / 303-item store: **19.8 KiB → 2.6 KiB per poll**. At the
+documented ceiling (50 lists × 2,000 items) the old single-endpoint shape shipped
+**7.6 MiB every three seconds**; the split brings it to **0.18 MiB**, with a single
+list fetched on demand.
+
+## Disclosure
+
+- **No network calls.** Nothing leaves the machine except the tick notices you see
+  in the chat.
+- **Local state only**: `plugin-data/ticklist/lists.json`.
+- **Chat hand-off**: a tick posts `Ticked — <item>` into the active composer. The 💬
+  toggle turns it off; nothing else in the plugin writes to the chat.
+- **Item text is sent to your model provider.** That post is a real user turn, so
+  the item name goes to whichever provider serves the session and is stored in the
+  session transcript. Don't put secrets on a list with announcing on.
+- **API authorisation is the host's, not the plugin's.** Routes are mounted at
+  `/api/plugins/ticklist/` behind the Hermes dashboard's own access control; the
+  plugin adds no auth of its own and should not be exposed beyond it.
+
+## Known limits
+
+- **No row virtualisation.** A 2,000-item list mounts 2,000 rows. Fine in the
+  hundreds, gooey at the ceiling. Fix, if anyone actually hits it: window the list
+  to the visible range, or cap the render behind a "show all" toggle.
+- **`/lists` still carries the active list's rows.** That is a deliberate compat
+  shim for the reload window (desktop hot-reloads, API needs a gateway restart), not
+  an oversight; it is one list, not the whole store.
+
+## Development
+
+```bash
+python3 scripts/check_setters.py desktop/plugin.js   # mount-time guard
+node --check desktop/plugin.js                       # the file is loaded uncompiled
+cd tests && python3 -m unittest test_core test_api   # 26 core + 11 API
+hermes plugins validate . --install-deps             # catalog admission
+hermes plugins doctor . --ci
+```
+
+`scripts/check_setters.py` catches three mistakes that are valid JavaScript, pass
+`node --check`, pass a server-side render probe, and still kill the pane on mount:
+a `setFoo()` whose `useState` was deleted, a `useX()` used but never imported from
+react, and an `area:` value written as a quoted constant instead of the imported
+one.
+
+Run the tests from inside `tests/`: a `PYTHONPATH` entry pointing at the Hermes
+checkout shadows the name `tests`, and the module is then reported "not found".
+
+## License
+
+MIT — see [LICENSE](LICENSE).
