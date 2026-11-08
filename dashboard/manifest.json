@@ -3,6 +3,6 @@
   "label": "TickList",
   "description": "A checklist you tick in the pane; every tick is announced to the agent.",
   "icon": "Checklist",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "api": "plugin_api.py"
 }

@@ -69,11 +69,11 @@ which is what makes the agent see it.
 | **☐ remove from list on tick** | off by default, remembered across sessions; with it on a tick deletes the row instead of striking it through |
 | **✕** on a row | deletes that item |
 | **Add** box | type one item per line; Enter adds |
-| **⠿ grip** | drag a row by it to reorder — within its own group (unticked or ticked), written straight to the store |
+| **⠿ grip** | drag a row **by the grip** to reorder — within its own group, written straight to the store. It's a real button: focus it and use **↑ / ↓** to move the row without a mouse |
 | **📌** | pins the list to the front of the strip; pinned lists sort ahead of the rest, in the order you made them |
 | **⤓** | export menu: Text, Markdown, CSV, JSON, or copy to the clipboard |
 | **Clear N ticked** | appears once something is ticked — empties the finished rows in one go, and says so in the chat |
-| **Undo** | a 12-second bar after any destructive action — deleting a list, clearing ticked rows, or removing one row — restoring the exact rows, order, ids and tick states |
+| **Undo** | a 12-second bar after any destructive action — deleting a list, clearing ticked rows, or removing one row — restoring rows, order, ids, tick states **and timestamps** |
 | **× on the active tab** | deletes that whole list — asks first, then posts `Deleted list — <name> (N items)` |
 | **Tab ✕** | closes the pane; `Ctrl+K → "TickList: show checklist"` re-opens it by the same id, restoring the list you were on |
 
@@ -106,6 +106,9 @@ worse answer than a pin. Add it if the tab strip ever gets past ~40 lists.
 | CSV | `done,text,created,done_at,id` | a spreadsheet, or a Todoist-style import |
 | JSON | the stored list verbatim | only lossless shape: ids and timestamps survive, so it can be re-imported |
 | Copy | the text shape, to the clipboard | a quick paste without a file on disk |
+
+CSV cells that would be evaluated by a spreadsheet (`=`, `+`, `-`, `@`) are
+prefixed with an apostrophe, so an item like `=HYPERLINK(...)` stays text.
 
 Exports are served by `GET /lists/{name}/export?fmt=txt|md|csv|json`, which returns
 `{filename, mime, content}`; the pane turns that into a download, so nothing is
@@ -176,6 +179,11 @@ host.openWorkspace('ticklist', {
   backend's "active" list — which is whichever list was last written to.
 - There is deliberately **no status-bar chip**: the pane is a permanent tab, so a
   chip would be a second door for something already one click away.
+
+Names hold up to 200 characters and are never truncated in the store — truncation is
+the renderer's job, because the store key is derived from the name and a cut name
+stops resolving. `hermes plugins update` is as inert as `install` until the app
+restarts, for the same reason.
 
 Reload the desktop half with **Ctrl+K → "Reload desktop plugins"**
 (`plugins.reload`, which re-scans the plugins root without a window reload). **"Reload

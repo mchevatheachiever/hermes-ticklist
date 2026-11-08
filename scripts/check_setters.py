@@ -72,7 +72,7 @@ BUTTON_SIZES = {
     "default", "xs", "sm", "lg", "touch", "inline", "micro", "icon",
     "icon-xs", "icon-sm", "icon-lg", "grip", "icon-titlebar",
 }
-VARIANT = re.compile(r"variant:\s*'([A-Za-z-]+)'")
+VARIANT = re.compile(r"(?<![A-Za-z])variant:\s*'([A-Za-z-]+)'")
 SIZE = re.compile(r"\bsize:\s*'([A-Za-z-]+)'")
 
 

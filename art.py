@@ -9,18 +9,13 @@ from __future__ import annotations
 
 from typing import Any, Sequence
 
+try:  # inside the plugin package
+    from .core import ordered_items
+except ImportError:  # loaded as a top-level module (tests, plugin_api by path)
+    from core import ordered_items
+
 BOX_DONE = "[x]"
 BOX_TODO = "[ ]"
-
-
-def ordered_items(entry: dict[str, Any]) -> list[dict[str, Any]]:
-    """Unticked first, ticked collected at the bottom — stable within each group.
-
-    A checklist is read to find what is left, so the finished rows belong out of
-    the way; regrouping must not shuffle the user's own ordering.
-    """
-    items = list(entry.get("items") or [])
-    return sorted(items, key=lambda item: bool(item.get("done")))
 
 
 def render_list(entry: dict[str, Any], *, width: int = 46) -> str:

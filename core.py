@@ -29,7 +29,7 @@ except ImportError:  # pragma: no cover - Windows
 SCHEMA_VERSION = 1
 MAX_ITEMS = 2000
 MAX_TEXT_CHARS = 240
-MAX_NAME_CHARS = 60
+MAX_NAME_CHARS = 200
 MAX_LISTS = 50
 
 _CTRL_RE = re.compile(r"[\x00-\x1f\x7f]")
@@ -73,9 +73,11 @@ def clean_name(raw: Any, *, default: str = "ticklist") -> str:
     if text[:1].islower() and (len(text) == 1 or not text[1:2].isupper()):
         text = text[0].upper() + text[1:]
     if len(text) > MAX_NAME_CHARS:
-        # Visible truncation, not a silent cut: two long names would otherwise
-        # both render as the same string in the tab strip.
-        return text[: MAX_NAME_CHARS - 1] + "…"
+        # Refuse rather than truncate. The store key is derived from the raw
+        # name and every later lookup goes through it, so a truncated *display*
+        # name silently stops resolving — the list stays visible but inert.
+        # Truncating for the screen is the renderer's job, not the store's.
+        raise TickError(f"a list name holds at most {MAX_NAME_CHARS} characters")
     return text
 
 
@@ -92,6 +94,31 @@ def slugify(name: str) -> str:
     if len(raw) > 48:
         return raw[:39] + "-" + hashlib.sha1(raw.encode("utf-8")).hexdigest()[:8]
     return raw
+
+
+def _as_float(value: Any, default: float | None = None) -> float | None:
+    """Coerce a timestamp from disk without ever raising.
+
+    A hand-edited or half-written store must not turn every route into a 500; a
+    bad timestamp is cosmetic, a crash is not.
+    """
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def ordered_items(entry: dict[str, Any]) -> list[dict[str, Any]]:
+    """Unticked rows first, ticked collected at the bottom, stable inside a group.
+
+    The single implementation: the pane, the text art and the exports all need
+    this order, and three copies would drift.
+    """
+    items = list(entry.get("items") or [])
+    items.sort(key=lambda item: bool(item.get("done")))
+    return items
 
 
 def list_key(raw: Any) -> str:
@@ -239,7 +266,7 @@ class TickStore:
             return _empty_state()
         try:
             raw = json.loads(text)
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, ValueError, TypeError):
             # Quarantine before returning an empty state: the very next write
             # would otherwise replace the user's items with a fresh empty file,
             # turning one corrupt byte into a total, silent wipe.
@@ -252,7 +279,11 @@ class TickStore:
         lists = raw.get("lists")
         if isinstance(lists, dict):
             for key, entry in lists.items():
-                clean = self._clean_list(key, entry)
+                try:
+                    clean = self._clean_list(key, entry)
+                except (ValueError, TypeError, AttributeError):
+                    # One unreadable list must not take the whole store with it.
+                    continue
                 if clean is not None:
                     state["lists"][key] = clean
         if state["active"] not in state["lists"]:
@@ -284,8 +315,8 @@ class TickStore:
                     "id": str(item.get("id") or new_id())[:16],
                     "text": text,
                     "done": bool(item.get("done")),
-                    "created": float(item.get("created") or 0) or time.time(),
-                    "done_at": item.get("done_at"),
+                    "created": _as_float(item.get("created")) or time.time(),
+                    "done_at": _as_float(item.get("done_at")),
                 }
             )
         return {
@@ -293,8 +324,8 @@ class TickStore:
             "name": clean_name(entry.get("name"), default=key),
             "items": items[:MAX_ITEMS],
             "pinned": bool(entry.get("pinned")),
-            "created_at": float(entry.get("created_at") or 0) or time.time(),
-            "updated_at": float(entry.get("updated_at") or 0) or time.time(),
+            "created_at": _as_float(entry.get("created_at")) or time.time(),
+            "updated_at": _as_float(entry.get("updated_at")) or time.time(),
         }
 
     def write(self, state: dict[str, Any]) -> None:
@@ -318,8 +349,22 @@ class TickStore:
         lists = state["lists"]
         if not lists:
             raise TickError("no list exists yet")
-        key = state["active"] if name is None else list_key(name)
-        entry = lists.get(key)
+        if name is None:
+            key = state["active"]
+            entry = lists.get(key)
+        else:
+            key = list_key(name)
+            entry = lists.get(key)
+            if entry is None:
+                # Fallback for entries written before names stopped being
+                # truncated: match on the display name the caller can actually
+                # read, rather than failing on the key they never saw.
+                wanted = str(name).strip().casefold()
+                entry = next(
+                    (e for e in lists.values() if e["name"].casefold() == wanted), None
+                )
+                if entry is not None:
+                    key = entry["id"]
         if entry is None:
             known = ", ".join(sorted(entry["name"] for entry in lists.values()))
             raise TickError(f"no list called {name!r}; known lists: {known}")
@@ -439,8 +484,8 @@ class TickStore:
                     "id": str(row.get("id") or new_id())[:16],
                     "text": text,
                     "done": bool(row.get("done")),
-                    "created": float(row.get("created") or 0) or now,
-                    "done_at": row.get("done_at"),
+                    "created": _as_float(row.get("created")) or now,
+                    "done_at": _as_float(row.get("done_at")),
                 }
             else:
                 item = {
@@ -453,6 +498,13 @@ class TickStore:
             rebuilt.append(item)
             if len(rebuilt) > MAX_ITEMS:
                 raise TickError(f"a list holds at most {MAX_ITEMS} items")
+        seen_ids: set[str] = set()
+        for item in rebuilt:
+            if item["id"] in seen_ids:
+                # Two rows sharing an id make the order unfixable: reorder's
+                # id->row map collapses and can never match the row count again.
+                raise TickError(f"duplicate row id {item['id']!r}")
+            seen_ids.add(item["id"])
         entry = self.get_list(name)
         key = entry["id"]
         with self._locked():

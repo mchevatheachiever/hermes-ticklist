@@ -40,7 +40,10 @@ logger = logging.getLogger(__name__)
 
 class AddPayload(BaseModel):
     items: Any = Field(default_factory=list)
-    list: str | None = Field(default=None, max_length=60)
+    # Undo of a deleted *empty* list has nothing to re-add, so the create has to
+    # be possible without items.
+    create_empty: bool = False
+    list: str | None = Field(default=None, max_length=200)
 
 
 class DonePayload(BaseModel):
@@ -64,8 +67,17 @@ class ClearPayload(BaseModel):
 
 
 def _items(entry: dict[str, Any]) -> list[dict[str, Any]]:
+    # created/done_at travel with the row so an undo can restore them; without
+    # them the snapshot loses the timestamps and the CSV columns change.
     return [
-        {"id": item["id"], "text": item["text"], "done": item["done"]} for item in entry["items"]
+        {
+            "id": item["id"],
+            "text": item["text"],
+            "done": item["done"],
+            "created": item.get("created"),
+            "done_at": item.get("done_at"),
+        }
+        for item in entry["items"]
     ]
 
 
@@ -187,7 +199,10 @@ async def delete_list(name: str) -> dict[str, Any]:
 @router.post("/lists")
 async def add_items(payload: AddPayload) -> dict[str, Any]:
     try:
-        core.TickStore().add_items(payload.list, payload.items)
+        if payload.create_empty:
+            core.TickStore().ensure_list(payload.list)
+        else:
+            core.TickStore().add_items(payload.list, payload.items)
     except core.TickError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except OSError as exc:

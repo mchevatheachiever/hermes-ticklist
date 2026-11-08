@@ -2,6 +2,40 @@
 
 All notable changes to this plugin. Versions follow the `plugin.yaml` version.
 
+## 1.6.0 — 2026-11-08
+
+Fixes from the second review (N1–N10).
+
+### Fixed
+- **N1 — a list with a long name was visible and inert.** The store key came from
+  the raw name while the display name was truncated at 60, so every lookup by the
+  name the user could see failed: tick, untick, add, clear and undo all 404'd, and
+  undoing a deleted long-named list created a *second* list beside it. Names are no
+  longer truncated in the store at all (200 characters, then refused), and lookups
+  fall back to a display-name match for stores written before this change.
+- **N2 — `replace_items()` accepted duplicate ids**, which locks the list out of
+  reorder permanently (the id→row map collapses, so the count check can never pass
+  again). Duplicates are refused; `created`/`done_at` are coerced instead of raising.
+- **N3 — a parseable store with one bad value bricked every route.** `created_at:
+  "not-a-number"` gave a 500 on `/lists` and a false `/health`. Timestamps are now
+  coerced on read, per-list failures are skipped, and `read()` quarantines rather
+  than propagating.
+- **N4 — downward drags landed one slot too far.** Removing the source shifts the
+  indices, so inserting at the target's original index put the row *below* the one
+  the indicator pointed above.
+- **N5 — the whole row was draggable, not the grip**, which killed text selection.
+  Only the grip starts a drag now, it is a focusable button, and ↑/↓ reorders.
+- **N6 — undo lost `created`/`done_at`** because the row payload omitted them, so
+  a restored tick had no completion time and the CSV columns changed.
+- **N7 — undo of a deleted empty list** failed: `POST /lists` demanded an item. It
+  takes `create_empty`.
+- **N8 — export order differed from the checklist order.** `core.ordered_items()`
+  is now the one implementation, used by the pane's sort, the art and the exports.
+- **N9 — CSV formula injection**: cells starting `= + - @` are prefixed with `'`.
+- **N10** — header comment no longer mentions the removed chip; the guard's variant
+  regex is anchored; clipboard uses `ctx.os.writeClipboard` where available; the
+  false "optimistic" comment is gone; the export menu closes on Escape.
+
 ## 1.5.0 — 2026-11-08
 
 ### Changed

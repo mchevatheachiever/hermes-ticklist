@@ -3,8 +3,8 @@
  *
  * A pane of checkboxes. Every tick or untick is posted into the conversation as
  * it happens, so the agent sees the change without being asked. The pane opens
- * through `host.openWorkspace`; the tab's own Close tears it down and the
- * status-bar chip re-opens it by the same id.
+ * through `host.openWorkspace` and docks beside the terminal pane; the tab's own
+ * Close tears it down, and the palette row re-opens it by the same id.
  *
  * Plain ESM, loaded uncompiled: jsx() calls, no JSX syntax.
  * Only @hermes/plugin-sdk, react and react/jsx-runtime resolve.
@@ -16,46 +16,66 @@ import { useCallback, useEffect, useState } from 'react'
 
 const ID = 'ticklist'
 
-function Row({ item, onToggle, onRemove, onDragStart, onDragOver, onDrop, dragging, dropTarget }) {
+function Row({
+  item,
+  onToggle,
+  onRemove,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onNudge,
+  dragging,
+  dropTarget
+}) {
   const [busy, setBusy] = useState(false)
   return jsxs('div', {
     className: 'group flex items-start gap-2 rounded px-1 py-1 hover:bg-(--chrome-action-hover)',
-    draggable: true,
-    onDragStart: (event) => {
-      event.dataTransfer.effectAllowed = 'move'
-      // Firefox needs data set for a drag to start at all.
-      event.dataTransfer.setData('text/plain', item.id)
-      onDragStart(item)
-    },
-    onDragOver: (event) => {
-      event.preventDefault()
-      event.dataTransfer.dropEffect = 'move'
-      onDragOver(item)
-    },
-    onDrop: (event) => {
-      event.preventDefault()
-      onDrop(item)
-    },
-    onDragEnd: () => onDragStart(null),
     style: {
       opacity: dragging ? 0.4 : 1,
       // A line where the row will land — inline, because a plugin's own Tailwind
       // class would never be compiled into the app's CSS.
-      boxShadow: dropTarget ? 'inset 0 2px 0 0 var(--ui-accent)' : 'none',
-      cursor: 'grab'
+      boxShadow: dropTarget ? 'inset 0 2px 0 0 var(--ui-accent)' : 'none'
     },
     children: [
-      jsx('span', {
-        'aria-hidden': 'true',
-        title: 'Drag to reorder',
+      // The grip is the handle — only it is draggable, so item text stays
+      // selectable and copyable. It is a button so the keyboard can reorder too.
+      jsx('button', {
+        type: 'button',
+        draggable: true,
+        title: 'Drag to reorder, or focus and press ↑ ↓',
+        'aria-label': `Reorder ${item.text}. Use the up and down arrows.`,
+        onDragStart: (event) => {
+          event.dataTransfer.effectAllowed = 'move'
+          // Firefox needs data set for a drag to start at all.
+          event.dataTransfer.setData('text/plain', item.id)
+          onDragStart(item)
+        },
+        onDragOver: (event) => {
+          event.preventDefault()
+          event.dataTransfer.dropEffect = 'move'
+          onDragOver(item)
+        },
+        onDrop: (event) => {
+          event.preventDefault()
+          onDrop(item)
+        },
+        onDragEnd: () => onDragStart(null),
+        onKeyDown: (event) => {
+          if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+            event.preventDefault()
+            onNudge(item, event.key === 'ArrowUp' ? -1 : 1)
+          }
+        },
         style: {
           flex: '0 0 auto',
-          width: '10px',
+          width: '12px',
           marginTop: '1px',
+          padding: 0,
+          border: 'none',
+          background: 'transparent',
           color: 'var(--ui-text-quaternary)',
           fontSize: '11px',
           lineHeight: '17px',
-          letterSpacing: '0',
           cursor: 'grab',
           userSelect: 'none'
         },
@@ -209,7 +229,7 @@ function TickPane({ ctx }) {
   // which is whichever list was last created or added to — not the tab in view.
   const listPath = useCallback(
     (itemId) => {
-      const suffix = list ? `?list=${encodeURIComponent(list.name)}` : ''
+      const suffix = list ? `?list=${encodeURIComponent(list.id)}` : ''
       return `/items/${encodeURIComponent(itemId)}${suffix}`
     },
     [list]
@@ -258,7 +278,7 @@ function TickPane({ ctx }) {
       const name = list ? list.name : ''
       try {
         await ctx.rest(listPath(item.id), { method: 'DELETE' })
-        setLastAction({ kind: 'remove', name, rows: snapshot, label: `Removed "${item.text}"` })
+        setLastAction({ kind: 'remove', name, id: list ? list.id : '', rows: snapshot, label: `Removed "${item.text}"` })
         refresh()
         post(`Removed — ${item.text}`)
       } catch (err) {
@@ -277,7 +297,7 @@ function TickPane({ ctx }) {
       await ctx.rest(`/lists/${encodeURIComponent(list.id)}`, { method: 'DELETE' })
       setPendingDelete('')
       setSelected('')
-      setLastAction({ kind: 'delete', name, rows: snapshot, label: `Deleted "${name}"` })
+      setLastAction({ kind: 'delete', name, id: list.id, rows: snapshot, label: `Deleted "${name}"` })
       try {
         Promise.resolve(ctx.storage.set('selectedList', '')).catch(() => {})
       } catch {
@@ -310,11 +330,11 @@ function TickPane({ ctx }) {
     const name = list.name
     const snapshot = rows
     try {
-      await ctx.rest(`/clear?list=${encodeURIComponent(list.name)}`, {
+      await ctx.rest(`/clear?list=${encodeURIComponent(list.id)}`, {
         method: 'POST',
         body: { done_only: true }
       })
-      setLastAction({ kind: 'clear', name, rows: snapshot, label: `Cleared ${count} ticked` })
+      setLastAction({ kind: 'clear', name, id: list.id, rows: snapshot, label: `Cleared ${count} ticked` })
       refresh()
       post(`Cleared ${count} ticked from ${name}`)
     } catch (err) {
@@ -324,14 +344,20 @@ function TickPane({ ctx }) {
 
   const undoLast = useCallback(async () => {
     if (!lastAction) return
-    const { kind, name, rows: snapshot } = lastAction
+    const { kind, name, id, rows: snapshot } = lastAction
     try {
       if (kind === 'delete') {
         // The list itself is gone, so recreate it, then overwrite the rows with
         // the snapshot to put the ids, order and timestamps back exactly.
-        await ctx.rest('/lists', { method: 'POST', body: { list: name, items: snapshot } })
+        // An empty list has no rows to re-add, so ask for the list itself.
+        await ctx.rest('/lists', {
+          method: 'POST',
+          body: snapshot.length
+            ? { list: name, items: snapshot }
+            : { list: name, create_empty: true }
+        })
       }
-      await ctx.rest(`/lists/${encodeURIComponent(name)}/items`, {
+      await ctx.rest(`/lists/${encodeURIComponent(id)}/items`, {
         method: 'PATCH',
         body: { items: snapshot }
       })
@@ -346,6 +372,15 @@ function TickPane({ ctx }) {
   // The undo window closes on its own; a stale offer to restore is worse than
   // no offer at all once other work has happened.
   useEffect(() => {
+    if (!exportOpen) return undefined
+    const onKey = (event) => {
+      if (event.key === 'Escape') setExportOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [exportOpen])
+
+  useEffect(() => {
     if (!lastAction) return undefined
     const timer = setTimeout(() => setLastAction(null), 12000)
     return () => clearTimeout(timer)
@@ -358,8 +393,11 @@ function TickPane({ ctx }) {
       const from = order.indexOf(fromId)
       const to = order.indexOf(toId)
       if (from < 0 || to < 0) return
-      order.splice(to, 0, order.splice(from, 1)[0])
-      // Optimistic: the list is already on screen in this order.
+      const [moved] = order.splice(from, 1)
+      // Removing the source shifts everything above it, so a downward move has
+      // to land one slot earlier than the target's original index — otherwise
+      // the row lands *below* the one the indicator pointed above.
+      order.splice(from < to ? to - 1 : to, 0, moved)
       try {
         await ctx.rest(`/lists/${encodeURIComponent(list.id)}/order`, {
           method: 'PATCH',
@@ -370,6 +408,27 @@ function TickPane({ ctx }) {
         setError(`could not reorder: ${err && err.message ? err.message : err}`)
         refresh()
       }
+    },
+    [ctx, items, list, refresh]
+  )
+
+  const nudge = useCallback(
+    (item, delta) => {
+      const group = items.filter((entry) => entry.done === item.done)
+      const at = group.findIndex((entry) => entry.id === item.id)
+      const neighbour = group[at + delta]
+      if (!neighbour) return
+      const order = items.map((entry) => entry.id)
+      const from = order.indexOf(item.id)
+      const to = order.indexOf(neighbour.id)
+      const [moved] = order.splice(from, 1)
+      order.splice(to, 0, moved)
+      haptic('tap')
+      if (!list) return
+      ctx
+        .rest(`/lists/${encodeURIComponent(list.id)}/order`, { method: 'PATCH', body: { ids: order } })
+        .then(refresh)
+        .catch((err) => setError(`could not reorder: ${err && err.message ? err.message : err}`))
     },
     [ctx, items, list, refresh]
   )
@@ -404,7 +463,11 @@ function TickPane({ ctx }) {
     if (!list) return
     try {
       const result = await ctx.rest(`/lists/${encodeURIComponent(list.id)}/export?fmt=txt`)
-      await navigator.clipboard.writeText(result.content)
+      if (ctx.os && typeof ctx.os.writeClipboard === 'function') {
+        await ctx.os.writeClipboard(result.content)
+      } else {
+        await navigator.clipboard.writeText(result.content)
+      }
       host.notify({ kind: 'info', message: 'List copied to the clipboard' })
     } catch (err) {
       setError(`could not copy: ${err && err.message ? err.message : err}`)
@@ -671,6 +734,7 @@ function TickPane({ ctx }) {
                     item,
                     onToggle: toggle,
                     onRemove: remove,
+                    onNudge: nudge,
                     dragging: dragId === item.id,
                     dropTarget: Boolean(
                       overId === item.id &&

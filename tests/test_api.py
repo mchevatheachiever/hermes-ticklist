@@ -117,6 +117,43 @@ class ApiTest(unittest.TestCase):
         self.assertEqual([item["text"] for item in shop["items"]], ["a", "b", "c"])
         self.assertEqual([item["id"] for item in shop["items"]], ids)
 
+    def test_long_names_work_over_http(self):
+        # N1 end to end: create, then every scoped write by the display name.
+        name = "Build the whole fence along the north boundary of the property line A"
+        created = self.client.post("/api/plugins/ticklist/lists", json={"items": ["posts"], "list": name})
+        self.assertEqual(created.status_code, 200, created.text)
+        entry = next(e for e in created.json()["lists"] if e["name"] == name)
+        quoted = __import__("urllib.parse", fromlist=["quote"]).quote(entry["name"])
+        item_id = entry["items"][0]["id"]
+
+        self.assertEqual(
+            self.client.patch(f"/api/plugins/ticklist/items/{item_id}?list={quoted}", json={"done": True}).status_code,
+            200,
+        )
+        self.assertEqual(self.client.patch(f"/api/plugins/ticklist/lists/{quoted}", json={"pinned": True}).status_code, 200)
+        self.assertEqual(self.client.get(f"/api/plugins/ticklist/lists/{quoted}/export").status_code, 200)
+        # and the undo path must not create a second list
+        self.assertEqual(len(self.client.get("/api/plugins/ticklist/lists").json()["lists"]), 1)
+
+    def test_create_empty_list(self):
+        # N7: undo of a deleted empty list had nothing to POST.
+        empty = self.client.post(
+            "/api/plugins/ticklist/lists", json={"list": "blank", "create_empty": True}
+        )
+        self.assertEqual(empty.status_code, 200, empty.text)
+        entry = next(e for e in empty.json()["lists"] if e["id"] == "blank")
+        self.assertEqual(entry["total"], 0)
+
+    def test_restore_keeps_timestamps(self):
+        # N6: _items must carry created/done_at or undo rewrites them.
+        created = self.client.post(
+            "/api/plugins/ticklist/lists", json={"items": ["a"], "list": "shop"}
+        ).json()
+        shop = next(e for e in created["lists"] if e["id"] == "shop")
+        item = shop["items"][0]
+        self.assertIn("created", item)
+        self.assertIn("done_at", item)
+
     def test_restore_refuses_a_mapping(self):
         self.client.post("/api/plugins/ticklist/lists", json={"items": ["a"], "list": "shop"})
         bad = self.client.patch(

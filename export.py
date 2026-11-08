@@ -12,6 +12,24 @@ import io
 import json
 from typing import Any
 
+try:  # inside the plugin package
+    from .core import ordered_items
+except ImportError:  # loaded as a top-level module (tests, plugin_api by path)
+    from core import ordered_items
+
+
+def _cell(value: Any) -> str:
+    """Neutralise spreadsheet formulas.
+
+    Excel, Sheets and LibreOffice evaluate a cell that starts with = + - @ (or a
+    tab / carriage return), so an item like `=HYPERLINK(...)` becomes live code in
+    a CSV the user opens. Prefixing with an apostrophe keeps it as text.
+    """
+    text = "" if value is None else str(value)
+    if text[:1] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + text
+    return text
+
 FORMATS = {
     "txt": ("text/plain; charset=utf-8", "txt"),
     "md": ("text/markdown; charset=utf-8", "md"),
@@ -21,17 +39,19 @@ FORMATS = {
 
 
 def build_text(entry: dict[str, Any]) -> str:
-    done = sum(1 for item in entry["items"] if item["done"])
-    lines = [f"{entry['name']} — {done}/{len(entry['items'])} done", ""]
-    lines += [f"[{'x' if item['done'] else ' '}] {item['text']}" for item in entry["items"]]
+    items = ordered_items(entry)
+    done = sum(1 for item in items if item["done"])
+    lines = [f"{entry['name']} — {done}/{len(items)} done", ""]
+    lines += [f"[{'x' if item['done'] else ' '}] {item['text']}" for item in items]
     return "\n".join(lines) + "\n"
 
 
 def build_markdown(entry: dict[str, Any]) -> str:
     """A task list any Markdown tool understands (Obsidian, GitHub, Notion)."""
-    done = sum(1 for item in entry["items"] if item["done"])
-    lines = [f"# {entry['name']}", "", f"*{done}/{len(entry['items'])} done*", ""]
-    lines += [f"- [{'x' if item['done'] else ' '}] {item['text']}" for item in entry["items"]]
+    items = ordered_items(entry)
+    done = sum(1 for item in items if item["done"])
+    lines = [f"# {entry['name']}", "", f"*{done}/{len(items)} done*", ""]
+    lines += [f"- [{'x' if item['done'] else ' '}] {item['text']}" for item in items]
     return "\n".join(lines) + "\n"
 
 
@@ -39,14 +59,14 @@ def build_csv(entry: dict[str, Any]) -> str:
     buffer = io.StringIO()
     writer = csv.writer(buffer, lineterminator="\n")
     writer.writerow(["done", "text", "created", "done_at", "id"])
-    for item in entry["items"]:
+    for item in ordered_items(entry):
         writer.writerow(
             [
                 "true" if item["done"] else "false",
-                item["text"],
-                item.get("created") or "",
-                item.get("done_at") or "",
-                item["id"],
+                _cell(item["text"]),
+                _cell(item.get("created") or ""),
+                _cell(item.get("done_at") or ""),
+                _cell(item["id"]),
             ]
         )
     return buffer.getvalue()

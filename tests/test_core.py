@@ -152,6 +152,19 @@ class StoreTest(unittest.TestCase):
         self.assertEqual([i["text"] for i in first["items"]], ["posts"])
         self.assertEqual([i["text"] for i in second["items"]], ["rails"])
 
+    def test_a_long_name_resolves_by_its_display_name(self):
+        # N1: the display name used to be truncated, so every later lookup by the
+        # name the user can see failed while the list stayed visible.
+        name = "Build the whole fence along the north boundary of the property line A"
+        self.store.add_items(name, ["posts"])
+        entry = self.store.get_list(name)
+        self.assertEqual(entry["name"], name)
+        self.assertEqual(self.store.get_list(entry["name"])["id"], entry["id"])
+
+    def test_an_over_long_name_is_refused_not_truncated(self):
+        with self.assertRaises(core.TickError):
+            self.store.add_items("x" * 250, ["a"])
+
     def test_short_names_keep_a_readable_slug(self):
         self.assertEqual(core.slugify("Site work #2"), "site-work-2")
 
@@ -297,9 +310,89 @@ class ExportTest(unittest.TestCase):
     def test_json_round_trips(self):
         self.assertEqual(json.loads(export.build_json(self.entry)), self.entry)
 
+    def test_export_uses_the_same_order_as_the_checklist(self):
+        entry = {
+            "name": "Shop",
+            "items": [
+                {"id": "a", "text": "done one", "done": True, "created": 1.0, "done_at": 2.0},
+                {"id": "b", "text": "todo one", "done": False, "created": 1.0, "done_at": None},
+            ],
+        }
+        for body in (export.build_text(entry), art.render_list(entry), export.build_markdown(entry)):
+            # unticked first in every surface, not just the pane
+            self.assertLess(body.index("todo one"), body.index("done one"), body[:80])
+
+    def test_csv_neutralises_formulas(self):
+        entry = {
+            "name": "Shop",
+            "items": [
+                {"id": "a", "text": "=HYPERLINK(\"http://x\")", "done": False},
+                {"id": "b", "text": "+1 555", "done": False},
+                {"id": "c", "text": "-5", "done": False},
+                {"id": "d", "text": "@user", "done": False},
+            ],
+        }
+        body = export.build_csv(entry)
+        for needle in ("'=HYPERLINK", "'+1 555", "'-5", "'@user"):
+            self.assertIn(needle, body)
+
     def test_unknown_format_is_refused(self):
         with self.assertRaises(ValueError):
             export.build(self.entry, "xlsx")
+
+
+class CorruptValueTest(unittest.TestCase):
+    def test_type_corrupt_values_do_not_brick_the_store(self):
+        # N3: a parseable file with a bad timestamp must still read.
+        import json as _json
+
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = Path(tmp.name) / "lists.json"
+        path.write_text(
+            _json.dumps(
+                {
+                    "version": 1,
+                    "active": "a",
+                    "lists": {
+                        "a": {
+                            "name": "A",
+                            "created_at": "not-a-number",
+                            "items": [{"text": "x", "created": "bad", "done_at": "bad"}],
+                        }
+                    },
+                }
+            )
+        )
+        store = core.TickStore(Path(tmp.name))
+        summary = store.summary()
+        self.assertEqual(summary["lists"][0]["name"], "A")
+        self.assertEqual(summary["lists"][0]["total"], 1)
+        self.assertEqual(list(Path(tmp.name).glob("lists.json.corrupt-*")), [])
+
+
+class ReplaceItemsTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.store = core.TickStore(Path(self.tmp.name))
+        self.store.add_items("shop", ["a", "b"])
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_duplicate_ids_are_refused(self):
+        # N2: duplicates make reorder permanently unfixable.
+        item = self.store.get_list("shop")["items"][0]
+        with self.assertRaises(core.TickError):
+            self.store.replace_items("shop", [item, item])
+
+    def test_bad_timestamps_are_coerced_not_fatal(self):
+        self.store.replace_items(
+            "shop", [{"id": "z1", "text": "a", "done": True, "created": "abc", "done_at": "abc"}]
+        )
+        item = self.store.get_list("shop")["items"][0]
+        self.assertIsInstance(item["created"], float)
+        self.assertIsNone(item["done_at"])
 
 
 class SeedTest(unittest.TestCase):
