@@ -355,6 +355,17 @@ function StatusChip({ ctx, onOpen }) {
     type: 'button',
     onClick: () => {
       haptic('tap')
+      const hasReveal = typeof ctx.revealPane === 'function'
+      const hasUndismiss = typeof ctx.undismissPane === 'function'
+      const hasVis = typeof ctx.paneVisibility === 'function'
+      try {
+        host.notify({
+          kind: 'info',
+          message: `chip: reveal=${hasReveal} undismiss=${hasUndismiss} vis=${hasVis} id=${ID}:pane`
+        })
+      } catch {
+        /* notification surface missing — the toast is only diagnostic */
+      }
       onOpen()
     },
     title: 'TickList — click to open the pane',
