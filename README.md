@@ -15,9 +15,9 @@ hermes plugins install ticklist
 ```
 
 Enable it in **Settings ▸ Plugins**. The **ticks** pane opens in the terminal
-pane's zone, and a **`☑ done/total` chip** stays in the status bar: click it to
-open the pane, close the tab when you don't want it, click the chip to bring it
-back. No typing, no trip to Settings.
+pane's zone as a sibling tab and stays there — switch to it like any other tab.
+If you close it, `Ctrl+K → "TickList: show checklist"` brings it back, on the
+list you were last reading.
 
 ## Use
 
@@ -34,7 +34,8 @@ which is what makes the agent see it.
 
 ## Closing, collapsing
 
-- **Tab ✕** closes the pane; the **status-bar chip** re-opens it by the same id.
+- **Tab ✕** closes the pane; `Ctrl+K → "TickList: show checklist"` re-opens it
+  by the same id, restoring the list you were on.
 - **▾** collapses it to a single header line showing `done/total`.
 - **💬** decides whether ticks are posted to the chat (each post is a model turn).
 - **☐ remove from list on tick** — off by default, remembered across sessions;
@@ -155,9 +156,9 @@ host.openWorkspace('ticklist', {
 
 - `pos: 'center'` stacks into the anchor's group (a tab beside TERMINAL);
   `pos: 'right'` would split a new zone beside it. `enforce` replays it at boot.
-- Re-opening the same id fronts the existing tab, so the **status-bar chip**
-  (`☑ 4/48`, `area: 'statusBar.right'`) is the always-visible door: click to open,
-  the tab's ✕ to close. No typing, no Settings.
+- Re-opening the same id fronts the existing tab. The list you were reading is
+  kept in `ctx.storage`, so a reopen lands where you left off rather than snapping
+  to the backend's "active" list.
 - List selection lives in a scrollable tab strip along the top, one tab per list
   with `done/total`.
 

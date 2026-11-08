@@ -91,6 +91,14 @@ function TickPane({ ctx }) {
           if (!cancelled && value === true) setRemoveOnTick(true)
         })
         .catch(() => {})
+      // Re-opening the pane remounts this component, so the tab you were on is
+      // gone unless it is stored: without this the pane snaps back to whatever
+      // the backend calls "active" (the last list written to).
+      Promise.resolve(ctx.storage.get('selectedList'))
+        .then((value) => {
+          if (!cancelled && typeof value === 'string' && value) setSelected(value)
+        })
+        .catch(() => {})
     } catch {
       /* no storage on an old shell — default stays off */
     }
@@ -291,7 +299,14 @@ function TickPane({ ctx }) {
                 {
                   key: entry.id,
                   type: 'button',
-                  onClick: () => setSelected(entry.id),
+                  onClick: () => {
+                    setSelected(entry.id)
+                    try {
+                      Promise.resolve(ctx.storage.set('selectedList', entry.id)).catch(() => {})
+                    } catch {
+                      /* non-fatal: the tab just won't be remembered */
+                    }
+                  },
                   className: cn(
                     'shrink-0 whitespace-nowrap rounded-t border-b-2 px-2 py-1 text-[0.6875rem] transition-colors',
                     entry.id === (list && list.id)
@@ -370,31 +385,6 @@ function TickPane({ ctx }) {
 }
 
 
-function StatusChip({ ctx, onOpen }) {
-  const query = useQuery({
-    queryKey: ['ticklist', 'chip'],
-    queryFn: () => ctx.rest('/lists'),
-    refetchInterval: 5000,
-    retry: 1
-  })
-  const lists = (query.data && query.data.lists) || []
-  const active = (query.data && query.data.active) || ''
-  const list = lists.find((entry) => entry.id === active) || lists[0] || null
-  const label = list ? `${list.done}/${list.total}` : '—'
-
-  return jsx('button', {
-    type: 'button',
-    onClick: () => {
-      haptic('tap')
-      onOpen()
-    },
-    title: 'TickList — click to open the pane',
-    className:
-      'inline-flex h-full items-center gap-1 px-1.5 text-[0.6875rem] transition-colors text-(--ui-text-tertiary) hover:bg-(--chrome-action-hover) hover:text-foreground',
-    children: `☑ ${label}`
-  })
-}
-
 export default {
   id: ID,
   name: 'TickList',
@@ -439,13 +429,6 @@ export default {
         render: () => jsx(TickPane, { ctx })
       })
     }
-
-    ctx.register({
-      id: 'chip',
-      area: 'statusBar.right',
-      order: 128,
-      render: () => jsx(StatusChip, { ctx, onOpen: open })
-    })
 
     ctx.register({
       id: 'toggle',
