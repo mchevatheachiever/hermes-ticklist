@@ -252,8 +252,10 @@ function TickPane({ ctx }) {
 
       showTabs
         ? jsx('div', {
-            className: 'flex shrink-0 gap-1 overflow-x-auto whitespace-nowrap pb-0.5',
-            style: { scrollbarWidth: 'thin' },
+            // Wrap, then scroll vertically: five rows (~7rem at this tab height)
+            // is the ceiling before the strip starts scrolling instead of growing.
+            className: 'flex shrink-0 flex-wrap gap-1 pb-0.5',
+            style: { scrollbarWidth: 'thin', maxHeight: '7rem', overflowY: 'auto' },
             children: state.lists.map((entry) =>
               jsx(
                 'button',
@@ -262,7 +264,7 @@ function TickPane({ ctx }) {
                   type: 'button',
                   onClick: () => setSelected(entry.id),
                   className: cn(
-                    'shrink-0 rounded-t border-b-2 px-2 py-1 text-[0.6875rem] transition-colors',
+                    'shrink-0 whitespace-nowrap rounded-t border-b-2 px-2 py-1 text-[0.6875rem] transition-colors',
                     entry.id === (list && list.id)
                       ? 'border-(--ui-accent) text-foreground'
                       : 'border-transparent text-(--ui-text-tertiary) hover:bg-(--chrome-action-hover)'
