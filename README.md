@@ -107,7 +107,10 @@ shop — 1/3 done
 - **Duplicate texts collapse** onto the first occurrence, case-insensitively — two
   identical rows would drift apart.
 - **Item text is shown exactly as typed**, because a checklist is often pasted
-  verbatim.
+  verbatim. **List titles** are the exception: a new title's first letter is
+  capitalised (`vehicles` → `Vehicles`), because a tab strip of lowercase headings
+  reads as a bug. All-lowercase opening words only — `DIY bits` and `iPad list` are
+  left alone, and the list's key is unchanged, so lookups still work either way.
 
 ## Desktop pane
 

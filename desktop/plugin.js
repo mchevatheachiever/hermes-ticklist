@@ -381,11 +381,12 @@ function TickPane({ ctx }) {
             style: { color: 'var(--ui-text-secondary)' }
           }),
           jsx(Button, {
-            size: 'xs',
-            variant: 'primary',
+            size: 'sm',
+            variant: 'default',
             onClick: add,
             disabled: !draft.trim(),
-            className: 'w-full',
+            className: 'w-full font-medium',
+            'aria-label': 'Add item',
             children: 'Add'
           })
         ]

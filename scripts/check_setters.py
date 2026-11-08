@@ -58,6 +58,43 @@ def check(path: Path) -> list[str]:
 
 
 
+# The app's Button only knows these. An unknown variant compiles to NO classes at
+# all, so the control renders as bare text instead of failing loudly — the same
+# hole as a Tailwind class the app never compiles (Tailwind v4 only scans
+# apps/desktop/src, so a plugin's own `border-b-2` can never exist either).
+# Source: components/ui/button.tsx in the desktop app.
+BUTTON_VARIANTS = {
+    "default", "destructive", "outline", "secondary", "chip", "ghost", "grip",
+    "floating", "link", "text", "textStrong",
+}
+BUTTON_SIZES = {
+    "default", "xs", "sm", "lg", "touch", "inline", "micro", "icon",
+    "icon-xs", "icon-sm", "icon-lg", "grip", "icon-titlebar",
+}
+VARIANT = re.compile(r"variant:\s*'([A-Za-z-]+)'")
+SIZE = re.compile(r"\bsize:\s*'([A-Za-z-]+)'")
+
+
+def check_button_props(path: Path) -> list[str]:
+    """`variant:`/`size:` values must exist in the app's Button."""
+    source = path.read_text(encoding="utf-8")
+    problems = []
+    for pattern, allowed, field in (
+        (VARIANT, BUTTON_VARIANTS, "variant"),
+        (SIZE, BUTTON_SIZES, "size"),
+    ):
+        for match in pattern.finditer(source):
+            value = match.group(1)
+            if value in allowed:
+                continue
+            line = source.count("\n", 0, match.start()) + 1
+            problems.append(
+                f"{path}:{line}: {field}: '{value}' is not a Button {field} — "
+                f"it compiles to nothing (valid: {', '.join(sorted(allowed))})"
+            )
+    return problems
+
+
 HOOK = re.compile(r"\b(use[A-Z][A-Za-z0-9]*)\s*\(")
 REACT_IMPORT = re.compile(r"import\s*\{([^}]*)\}\s*from\s*'react'")
 SDK_IMPORT = re.compile(r"import\s*\{([^}]*)\}\s*from\s*'@hermes/plugin-sdk'")
@@ -136,6 +173,7 @@ def main() -> int:
             problems.extend(check_hooks(target))
             problems.extend(check_sdk_constants(target))
             problems.extend(check_quoted_areas(target))
+            problems.extend(check_button_props(target))
     for problem in problems:
         print(problem)
     return 1 if problems else 0

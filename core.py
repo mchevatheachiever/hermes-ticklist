@@ -66,6 +66,12 @@ def clean_name(raw: Any, *, default: str = "ticklist") -> str:
     if not isinstance(raw, str):
         raise TickError("list name must be text")
     text = _CTRL_RE.sub(" ", raw).strip() or default
+    # A list title is a heading, so it starts with a capital: models create
+    # lowercase names ("vehicles"), and a tab strip of lowercase labels reads
+    # like a bug. Only an all-lowercase opening word is touched, so acronyms and
+    # camelCase names the user typed ("DIY", "iPad") survive.
+    if text[:1].islower() and (len(text) == 1 or not text[1:2].isupper()):
+        text = text[0].upper() + text[1:]
     if len(text) > MAX_NAME_CHARS:
         # Visible truncation, not a silent cut: two long names would otherwise
         # both render as the same string in the tab strip.

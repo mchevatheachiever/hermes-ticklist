@@ -49,7 +49,7 @@ class StoreTest(unittest.TestCase):
 
     def test_add_creates_list(self):
         result = self.store.add_items(None, ["brackets", "screws"])
-        self.assertEqual(result["list"]["name"], "ticklist")
+        self.assertEqual(result["list"]["name"], "Ticklist")
         self.assertEqual(len(result["list"]["items"]), 2)
         self.assertTrue(all(not i["done"] for i in result["list"]["items"]))
 
@@ -109,7 +109,7 @@ class StoreTest(unittest.TestCase):
         self.store.add_items("shopping", ["milk"])
         self.store.add_items("jobs", ["fence"])
         summary = self.store.summary()
-        self.assertEqual(sorted(entry["name"] for entry in summary["lists"]), ["jobs", "shopping"])
+        self.assertEqual(sorted(entry["name"] for entry in summary["lists"]), ["Jobs", "Shopping"])
 
     def test_persisted_json_shape(self):
         self.store.add_items(None, ["a"])
@@ -134,7 +134,7 @@ class StoreTest(unittest.TestCase):
 
         self.store.add_items("fresh", ["milk"])
         self.assertEqual(len(backups[0].read_text()) > 0, True)
-        self.assertEqual([entry["name"] for entry in self.store.summary()["lists"]], ["fresh"])
+        self.assertEqual([entry["name"] for entry in self.store.summary()["lists"]], ["Fresh"])
 
     def test_long_names_do_not_collide(self):
         a = "Build the whole fence along the north boundary of the property line A"
@@ -159,6 +159,21 @@ class StoreTest(unittest.TestCase):
         self.store.set_done(None, items[0]["id"], True)
         entry = self.store.get_list()
         self.assertEqual(sum(1 for i in entry["items"] if i["done"]), 1)
+
+
+class NameTest(unittest.TestCase):
+    def test_titles_capitalise(self):
+        self.assertEqual(core.clean_name("vehicles"), "Vehicles")
+        self.assertEqual(core.clean_name("site work #2"), "Site work #2")
+        self.assertEqual(core.clean_name("a"), "A")
+
+    def test_names_the_user_chose_keep_their_case(self):
+        self.assertEqual(core.clean_name("DIY bits"), "DIY bits")
+        self.assertEqual(core.clean_name("iPad list"), "iPad list")
+        self.assertEqual(core.clean_name("123 numbers"), "123 numbers")
+
+    def test_capitalising_does_not_change_the_key(self):
+        self.assertEqual(core.list_key("vehicles"), core.list_key("Vehicles"))
 
 
 class PayloadTest(unittest.TestCase):

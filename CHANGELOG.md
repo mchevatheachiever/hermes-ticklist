@@ -2,6 +2,22 @@
 
 All notable changes to this plugin. Versions follow the `plugin.yaml` version.
 
+## 1.1.2 — 2026-11-08
+
+### Fixed
+- **The Add button rendered as bare text.** It was created with
+  `variant: 'primary'`, which is not a `Button` variant in this app (`default`,
+  `secondary`, `outline`, `chip`, `ghost`, … are) — an unknown variant compiles to
+  no classes at all. It is now the real filled `default` button.
+- **New list titles start with a capital.** Models name lists in lowercase
+  (`vehicles`), so the tab strip read like a bug. `clean_name` capitalises an
+  all-lowercase opening word and leaves `DIY`/`iPad` alone; the store key is
+  unaffected.
+
+### Added
+- The guard now also rejects a `Button` `variant`/`size` the app doesn't define —
+  the same silent-nothing failure as a Tailwind class that never gets compiled.
+
 ## 1.1.1 — 2026-11-08
 
 Fixes from an external review of 1.1.0 (issue #1).
