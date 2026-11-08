@@ -103,3 +103,28 @@ API tests need FastAPI (the Hermes runtime venv has it):
 ## License
 
 MIT
+
+## Desktop pane
+
+The pane docks into the **terminal pane's zone** as a sibling tab, and opens as a
+closeable workspace tile:
+
+```js
+host.openWorkspace('ticklist', {
+  title: 'ticks',
+  dock: { pane: 'terminal', pos: 'center', enforce: true },
+  minWidth: '20rem',
+  render: () => jsx(TickPane, { ctx })
+})
+```
+
+- `pos: 'center'` stacks into the anchor's group (a tab beside TERMINAL);
+  `pos: 'right'` would split a new zone beside it. `enforce` replays it at boot.
+- Re-opening the same id fronts the existing tab, so the **status-bar chip**
+  (`☑ 4/48`, `area: 'statusBar.right'`) is the always-visible door: click to open,
+  the tab's ✕ to close. No typing, no Settings.
+- List selection lives in a scrollable tab strip along the top, one tab per list
+  with `done/total`.
+
+Reload plugins with **Ctrl+K → "Reload window"** (there is no "Reload desktop
+plugins" command).
