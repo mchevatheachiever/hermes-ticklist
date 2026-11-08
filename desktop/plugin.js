@@ -246,6 +246,7 @@ function TickPane({ ctx }) {
 
   return jsxs('div', {
     className: 'flex h-full min-h-0 flex-col gap-1.5 overflow-hidden p-2 text-sm',
+    style: { minWidth: '18rem', width: '100%' },
     children: [
       header,
 
@@ -382,6 +383,9 @@ export default {
       try {
         host.openWorkspace('ticklist', {
           title: 'ticks',
+          // A floor on the tile's width: without it the right-zone sash happily
+          // collapses the pane to nothing and the list is unreadable.
+          minWidth: '20rem',
           render: () => jsx(TickPane, { ctx })
         })
         return true
