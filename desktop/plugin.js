@@ -383,6 +383,11 @@ export default {
       try {
         host.openWorkspace('ticklist', {
           title: 'ticks',
+          // Land in the SAME zone as the terminal pane, as a sibling tab —
+          // pos:'center' stacks into the anchor's group (pos:'right' would split
+          // a new zone beside it, which is the weird space it kept landing in).
+          // enforce replays the placement at boot so it survives re-adoption.
+          dock: { pane: 'terminal', pos: 'center', enforce: true },
           // A floor on the tile's width: without it the right-zone sash happily
           // collapses the pane to nothing and the list is unreadable.
           minWidth: '20rem',
