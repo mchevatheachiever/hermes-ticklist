@@ -74,7 +74,7 @@ function Row({ item, onToggle, onRemove }) {
   })
 }
 
-function TickPane({ ctx, onClose }) {
+function TickPane({ ctx }) {
   const [collapsed, setCollapsed] = useState(false)
   const [draft, setDraft] = useState('')
   const [error, setError] = useState('')
@@ -231,14 +231,6 @@ function TickPane({ ctx, onClose }) {
         title: announce ? 'Ticks are posted to the chat' : 'Ticks stay in the pane',
         children: announce ? '💬' : '🔇'
       }),
-      jsx('button', {
-        type: 'button',
-        title: 'Close (reopen with ⌘K → TickList)',
-        onClick: onClose,
-        className: 'shrink-0 text-(--ui-text-tertiary) hover:text-foreground',
-        style: { fontSize: '11px', padding: '0 2px' },
-        children: '✕'
-      })
     ]
   })
 
@@ -347,7 +339,7 @@ function TickPane({ ctx, onClose }) {
 }
 
 
-function StatusChip({ ctx, isOpen, onToggle }) {
+function StatusChip({ ctx, onOpen }) {
   const query = useQuery({
     queryKey: ['ticklist', 'chip'],
     queryFn: () => ctx.rest('/lists'),
@@ -363,9 +355,9 @@ function StatusChip({ ctx, isOpen, onToggle }) {
     type: 'button',
     onClick: () => {
       haptic('tap')
-      onToggle()
+      onOpen()
     },
-    title: isOpen ? 'TickList — click to hide the pane' : 'TickList — click to open the pane',
+    title: 'TickList — click to open the pane',
     className:
       'inline-flex h-full items-center gap-1 px-1.5 text-[0.6875rem] transition-colors text-(--ui-text-tertiary) hover:bg-(--chrome-action-hover) hover:text-foreground',
     children: `☑ ${label}`
@@ -376,39 +368,34 @@ export default {
   id: ID,
   name: 'TickList',
   register(ctx) {
-    let disposePane = null
+    const paneId = `${ID}:pane`
 
-    const hidePane = () => {
-      if (disposePane) {
-        disposePane()
-        disposePane = null
+    const showPane = () => {
+      // Forget a persisted Close, then front it — the SDK's own "user asked for
+      // this pane" path. Registering a pane at runtime does not re-admit it to
+      // the layout tree, which is why the disposer approach silently failed.
+      try {
+        if (typeof ctx.undismissPane === 'function') ctx.undismissPane(paneId)
+        if (typeof ctx.revealPane === 'function') ctx.revealPane(paneId)
+      } catch {
+        /* older desktop: the tab strip still has it */
       }
     }
 
-    const showPane = () => {
-      if (disposePane) return
-      disposePane = ctx.register({
-        id: 'pane',
-        area: 'panes',
-        title: 'ticks',
-        data: { placement: 'right', width: '360px' },
-        render: () => jsx(TickPane, { ctx, onClose: hidePane })
-      })
-    }
+    ctx.register({
+      id: 'pane',
+      area: 'panes',
+      title: 'ticks',
+      data: { placement: 'right', width: '360px' },
+      render: () => jsx(TickPane, { ctx })
+    })
 
-    showPane()
-
-    // The chip is the UI door: always on screen, one click either way.
+    // The chip is the UI door: always on screen, one click to bring the pane back.
     ctx.register({
       id: 'chip',
       area: 'statusBar.right',
       order: 128,
-      render: () =>
-        jsx(StatusChip, {
-          ctx,
-          isOpen: Boolean(disposePane),
-          onToggle: () => (disposePane ? hidePane() : showPane())
-        })
+      render: () => jsx(StatusChip, { ctx, onOpen: showPane })
     })
 
     ctx.register({
@@ -416,12 +403,9 @@ export default {
       area: PALETTE_AREA,
       data: {
         id: `${ID}.toggle`,
-        label: 'TickList: show / hide checklist',
+        label: 'TickList: show checklist',
         keywords: ['tick', 'checklist', 'todo', 'tasks', 'list'],
-        run: () => {
-          if (disposePane) hidePane()
-          else showPane()
-        }
+        run: showPane
       }
     })
   }
